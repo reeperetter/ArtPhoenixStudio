@@ -1,6 +1,4 @@
-def main():
-    print("Hello from paint-by-numbers!")
-
+from paint_by_numbers.cli import main
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
