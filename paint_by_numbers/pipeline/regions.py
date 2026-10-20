@@ -154,3 +154,49 @@ def merge_small_regions(
     ).astype(np.float32)
     return RegionMap(final_L, remap[f_col].astype(np.int32), f_area.astype(np.int64), palette,
                      R if n_before is None else n_before)
+
+
+def remove_protrusions(L: np.ndarray, radius_px: float, sal: np.ndarray, keep_sal: float = 0.75) -> np.ndarray:
+    """Прибирає вузькі виступи й перемички шириною менше 2*radius_px (морфологічне розкриття кожної
+    області). Вилучені пікселі переходять до найближчої області, що збереглася. У зонах високої
+    значущості (sal >= keep_sal) нічого не змінюється. Результат може мати розірвані області:
+    після нього потрібно повторити виділення зв'язних компонент."""
+    from scipy import ndimage as ndi
+    r = int(round(radius_px))
+    if r < 1:
+        return L
+    kernel = cv2_ellipse(2 * r + 1)
+    objs = ndi.find_objects(L + 1)
+    lost = np.zeros(L.shape, bool)
+    H, W = L.shape
+    import cv2
+    for i, sl in enumerate(objs):
+        if sl is None:
+            continue
+        y0, y1 = max(sl[0].start - r - 1, 0), min(sl[0].stop + r + 1, H)
+        x0, x1 = max(sl[1].start - r - 1, 0), min(sl[1].stop + r + 1, W)
+        m = (L[y0:y1, x0:x1] == i).astype(np.uint8)
+        if m.shape[0] < 2 * r + 1 or m.shape[1] < 2 * r + 1:
+            lost[y0:y1, x0:x1] |= m.astype(bool)
+            continue
+        # полотно як «стіна»: розкриття не повинно різати область біля краю зображення
+        padded = np.pad(m, r, mode="edge") if (y0 == 0 or x0 == 0 or y1 == H or x1 == W) else m
+        op = cv2.morphologyEx(padded, cv2.MORPH_OPEN, kernel)
+        if padded is not m:
+            op = op[r:-r, r:-r]
+        lost[y0:y1, x0:x1] |= (m > 0) & (op == 0)
+    lost &= sal < keep_sal
+    if not lost.any():
+        return L
+    keep = ~lost
+    if not keep.any():
+        return L
+    _, (iy, ix) = ndi.distance_transform_edt(lost, return_indices=True)
+    out = L.copy()
+    out[lost] = L[iy[lost], ix[lost]]
+    return out
+
+
+def cv2_ellipse(size: int) -> np.ndarray:
+    import cv2
+    return cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (size, size))

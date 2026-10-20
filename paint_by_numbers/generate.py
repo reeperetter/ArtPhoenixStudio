@@ -11,10 +11,13 @@ import numpy as np
 from skimage.metrics import structural_similarity
 
 from .export import preview
+from .export.svg import write_svg
+from .geometry.labels import place_numbers_vector
+from .geometry.planar import build_geometry
 from .image_io.loader import load_image
 from .pipeline.color_quantization import quantize
 from .pipeline.preprocess import denoise, lab_to_bgr_u8, saliency_map, to_lab
-from .pipeline.regions import RegionMap, connected_regions, merge_small_regions
+from .pipeline.regions import RegionMap, connected_regions, merge_small_regions, remove_protrusions
 from .settings import Settings
 
 PREVIEW_SCALE = 2
@@ -57,6 +60,12 @@ def generate(photo: str, settings: Settings, out_dir: str | Path) -> Result:
     base_min_px = p.min_area_mm2 * ppm * ppm
     rm = merge_small_regions(L0, col0, lab, sal, base_min_px)
     lap("merge")
+    # вузькі виступи й перемички вужчі за мінімальну ширину (розділ 8.3 ТЗ), далі повторне об'єднання
+    L1 = remove_protrusions(rm.labels, 0.5 * p.min_width_mm * ppm, sal)
+    if L1 is not rm.labels:
+        cl, cc = connected_regions(rm.color[L1], len(rm.palette_lab))
+        rm = merge_small_regions(cl, cc, lab, sal, base_min_px)
+    lap("protrusions")
 
     min_digit_px = p.min_digit_mm * ppm
     line_px = p.line_mm * ppm
@@ -72,11 +81,19 @@ def generate(photo: str, settings: Settings, out_dir: str | Path) -> Result:
                                  keep_contrast=KEEP_CONTRAST, n_before=rm.n_before)
         if len(rm.area_px) == before:
             break
-    spots = preview.place_numbers(rm, min_digit_px, max_digit_px=min_digit_px * 1.6, line_px=line_px)
     lap("numbers")
 
+    # векторна геометрія зі спільними ребрами та номери за полігонами
+    geom = build_geometry(rm.labels, sal)
+    lap("geometry")
+    max_digit_px = min_digit_px * 1.6
+    spots = place_numbers_vector(geom.faces, rm.color, min_digit_px, max_digit_px, line_px)
+    lap("labels")
+    svg_info = write_svg(out / "canvas_outline.svg", geom, spots, ppm, img.width_mm, img.height_mm, p.line_mm)
+    lap("svg")
+
     color_img = preview.render_color(rm)
-    contour_img = preview.render_contours(rm, spots, PREVIEW_SCALE, line_px)
+    contour_img = preview.render_vector(geom.chains, rm.labels.shape, spots, PREVIEW_SCALE, line_px)
     cv2.imwrite(str(out / "color_preview.png"), color_img)
     cv2.imwrite(str(out / "contour_preview.png"), contour_img)
     cv2.imwrite(str(out / "palette.png"), preview.render_palette(rm))
@@ -92,6 +109,8 @@ def generate(photo: str, settings: Settings, out_dir: str | Path) -> Result:
     ssim = float(structural_similarity(g1, g2, data_range=255))
     lap("metrics")
 
+    if not geom.topology["ok"]:
+        img.warnings.append("КРИТИЧНО: перевірка топології не пройдена, виробничий пакет не можна формувати.")
     areas_mm2 = rm.area_px / (ppm * ppm)
     bm = preview.boundary_mask(rm.labels)
     report = {
@@ -105,6 +124,9 @@ def generate(photo: str, settings: Settings, out_dir: str | Path) -> Result:
         "regions_final": int(len(rm.area_px)),
         "regions_below_min_area": int((areas_mm2 < p.min_area_mm2 * 0.5).sum()),
         "regions_without_number_room": int(sum(1 for s in spots if s.digit_px <= 0)),
+        "regions_narrow": int(sum(1 for s in spots if 2 * max(s.radius, 0) / ppm < p.min_width_mm)),
+        "topology": geom.topology,
+        "svg": svg_info,
         "median_region_area_mm2": round(float(np.median(areas_mm2)), 1),
         "boundary_length_m": round(float(bm.sum()) / ppm / 1000.0, 2),
         "mean_delta_e76": round(de, 2),

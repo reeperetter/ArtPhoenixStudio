@@ -3,24 +3,13 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
-
 import cv2
 import numpy as np
 from scipy import ndimage as ndi
 
+from ..geometry.labels import NumberSpot, digit_height
 from ..pipeline.preprocess import lab_to_bgr_u8
 from ..pipeline.regions import RegionMap
-
-
-@dataclass
-class NumberSpot:
-    region: int
-    number: int        # 1-based номер фарби
-    x: int
-    y: int
-    radius: float      # радіус вписаного кола, px
-    digit_px: float    # висота цифри, px (0 -> не поміщається)
 
 
 def palette_bgr(rm: RegionMap) -> np.ndarray:
@@ -61,10 +50,22 @@ def place_numbers(rm: RegionMap, min_digit_px: float, max_digit_px: float, line_
         y = sl[0].start + yy - 1
         x = sl[1].start + xx - 1
         n_digits = len(str(int(rm.color[i]) + 1))
-        h = r / (0.5 * math.sqrt((0.62 * n_digits) ** 2 + 1.0)) if r > 0 else 0.0
-        h = min(h, max_digit_px)
-        spots.append(NumberSpot(i, int(rm.color[i]) + 1, x, y, r, h if h >= min_digit_px else 0.0))
+        spots.append(NumberSpot(i, int(rm.color[i]) + 1, x, y, r,
+                                digit_height(r, n_digits, min_digit_px, max_digit_px)))
     return spots
+
+
+def render_vector(chains, shape: tuple[int, int], spots: list[NumberSpot], scale: int,
+                  line_px: float) -> np.ndarray:
+    """Растеризація саме векторних ребер (того, що потрапляє в SVG), з підпіксельною точністю."""
+    H, W = shape
+    img = np.full((H * scale, W * scale, 3), 255, np.uint8)
+    th = max(1, int(round(line_px * scale)))
+    for ch in chains:
+        pts = np.round(ch.pts * scale * 16).astype(np.int32).reshape(-1, 1, 2)
+        cv2.polylines(img, [pts], False, (40, 40, 40), th, cv2.LINE_AA, shift=4)
+    _draw_numbers(img, spots, scale)
+    return img
 
 
 def render_contours(rm: RegionMap, spots: list[NumberSpot], scale: int, line_px: float) -> np.ndarray:
@@ -76,6 +77,11 @@ def render_contours(rm: RegionMap, spots: list[NumberSpot], scale: int, line_px:
         bm = cv2.dilate(bm, np.ones((k, k), np.uint8))
     img = np.full((H * scale, W * scale, 3), 255, np.uint8)
     img[bm > 0] = (40, 40, 40)
+    _draw_numbers(img, spots, scale)
+    return img
+
+
+def _draw_numbers(img: np.ndarray, spots: list[NumberSpot], scale: int) -> None:
     (_, base_h), _ = cv2.getTextSize("0", cv2.FONT_HERSHEY_SIMPLEX, 1.0, 1)
     for s in spots:
         if s.digit_px <= 0:
@@ -85,7 +91,6 @@ def render_contours(rm: RegionMap, spots: list[NumberSpot], scale: int, line_px:
         (tw, th), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, fs, 1)
         org = (int(s.x * scale - tw / 2), int(s.y * scale + th / 2))
         cv2.putText(img, text, org, cv2.FONT_HERSHEY_SIMPLEX, fs, (90, 90, 90), 1, cv2.LINE_AA)
-    return img
 
 
 def render_palette(rm: RegionMap, px_per_region: np.ndarray | None = None) -> np.ndarray:
