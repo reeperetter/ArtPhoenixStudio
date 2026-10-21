@@ -77,4 +77,4 @@ def test_full_pipeline_topology_ok(tmp_path):
     cv2.imwrite(str(tmp_path / "p.png"), img)
     res = generate(str(tmp_path / "p.png"), Settings(n_colors=8, width_mm=110.0), tmp_path / "o")
     assert res.report["topology"]["ok"]
-    assert (tmp_path / "o" / "canvas_outline.svg").exists()
+    assert (res.out_dir / "print" / "canvas_outline.svg").exists()

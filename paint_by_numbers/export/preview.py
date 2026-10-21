@@ -56,10 +56,13 @@ def place_numbers(rm: RegionMap, min_digit_px: float, max_digit_px: float, line_
 
 
 def render_vector(chains, shape: tuple[int, int], spots: list[NumberSpot], scale: int,
-                  line_px: float) -> np.ndarray:
+                  line_px: float, tint: np.ndarray | None = None) -> np.ndarray:
     """Растеризація саме векторних ребер (того, що потрапляє в SVG), з підпіксельною точністю."""
     H, W = shape
     img = np.full((H * scale, W * scale, 3), 255, np.uint8)
+    if tint is not None:       # світла заливка кольором під контурами (numbered_preview)
+        up = cv2.resize(tint, (W * scale, H * scale), interpolation=cv2.INTER_NEAREST)
+        img = (up.astype(np.float32) * 0.35 + 255 * 0.65).astype(np.uint8)
     th = max(1, int(round(line_px * scale)))
     for ch in chains:
         pts = np.round(ch.pts * scale * 16).astype(np.int32).reshape(-1, 1, 2)

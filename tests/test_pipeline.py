@@ -23,18 +23,18 @@ def test_deterministic_and_valid(tmp_path):
     a = generate(str(photo), s, tmp_path / "a")
     b = generate(str(photo), s, tmp_path / "b")
     # детермінованість (розділ 1.4 ТЗ)
-    assert np.array_equal(a.regions.labels, b.regions.labels)
-    L = a.regions.labels
+    assert np.array_equal(a.rm.labels, b.rm.labels)
+    L = a.rm.labels
     R = int(L.max()) + 1
-    assert len(a.regions.area_px) == R
-    assert a.regions.area_px.sum() == L.size          # без прогалин і накладань
+    assert len(a.rm.area_px) == R
+    assert a.rm.area_px.sum() == L.size          # без прогалин і накладань
     # кожна ділянка зв'язна
     for i in range(R):
         _, n = ndi.label(L == i)
         assert n == 1
     # сусідні ділянки не мають однакового кольору
-    c = a.regions.color
+    c = a.rm.color
     for x, y in ((L[:, :-1], L[:, 1:]), (L[:-1, :], L[1:, :])):
         m = x != y
         assert not np.any(c[x[m]] == c[y[m]])
-    assert (tmp_path / "a" / "contour_preview.png").exists()
+    assert (a.out_dir / "preview" / "contour_preview.png").exists()

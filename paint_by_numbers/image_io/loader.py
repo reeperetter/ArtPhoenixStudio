@@ -16,11 +16,11 @@ class LoadedImage:
     width_mm: float
     height_mm: float
     px_per_mm: float
-    warnings: list[str]
+    warnings: list[dict]
 
 
 def load_image(path: str, width_mm: float, height_mm: float | None, px_per_mm: float) -> LoadedImage:
-    warnings: list[str] = []
+    warnings: list[dict] = []
     im = Image.open(path)
     im = ImageOps.exif_transpose(im)           # правильна орієнтація за EXIF
     if im.mode in ("RGBA", "LA", "P"):         # прозорість -> білий фон
@@ -44,15 +44,21 @@ def load_image(path: str, width_mm: float, height_mm: float | None, px_per_mm: f
             nh = int(round(sw / target))
             y0 = (sh - nh) // 2
             im = im.crop((0, y0, sw, y0 + nh))
-        warnings.append("Фото обрізано до пропорцій полотна (центральне кадрування).")
+        warnings.append({
+            "code": "IMG_CROPPED", "severity": "info",
+            "message": "Фото обрізано до пропорцій полотна (центральне кадрування).",
+            "recommendation": "Перевірте, що важливі деталі не опинилися за краєм кадру.",
+        })
 
     ww, wh = int(round(width_mm * px_per_mm)), int(round(height_mm * px_per_mm))
     cw, ch = im.size
     if cw < ww:
-        warnings.append(
-            f"Роздільна здатність фото низька для цього розміру полотна: "
-            f"{cw}x{ch} px проти робочих {ww}x{wh} px."
-        )
+        warnings.append({
+            "code": "IMG_LOW_RES", "severity": "warning",
+            "message": f"Роздільна здатність фото низька для цього розміру полотна: "
+                       f"{cw}x{ch} px проти робочих {ww}x{wh} px.",
+            "recommendation": "Попросіть у замовника фото більшого розміру або зменште розмір полотна.",
+        })
     arr = np.asarray(im)
     interp = cv2.INTER_AREA if cw >= ww else cv2.INTER_CUBIC
     arr = cv2.resize(arr, (ww, wh), interpolation=interp)

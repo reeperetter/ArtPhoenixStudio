@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, asdict
 
+ALGORITHM_VERSION = "0.4.0"
+PROJECT_FORMAT_VERSION = 1
+
 
 @dataclass(frozen=True)
 class ModePreset:
@@ -30,6 +33,15 @@ class Settings:
     height_mm: float | None = None       # None -> за пропорціями фото
     px_per_mm: float = 3.0               # робоча роздільна здатність
     seed: int = 12345                    # детермінованість (розділ 1.4 ТЗ)
+    # проєкт і специфікація фарб (розділ 11 ТЗ)
+    order_number: str = "000001"
+    project_name: str = ""
+    container_ml: float = 3.0                         # номінальний об'єм однієї ємності
+    coverage_mm2_per_container: float | None = None   # N: площа, що її покриває 1 ємність (мм²). Не має
+                                                      # вбудованого значення: вимірюється фізичними тестами
+    safety_factor: float = 1.0                        # K >= 1: шари, втрати, нерівномірність
+    coverage_confirmed: bool = False                  # True лише після підтвердження N фізичними тестами
+    many_containers_warn: int = 10                    # попередження, якщо одного кольору потрібно більше
     extra: dict = field(default_factory=dict)
 
     @property

@@ -1,9 +1,9 @@
-"""Оркестрація конвеєра етапу 1 (без графічного інтерфейсу)."""
+"""Оркестрація конвеєра (без графічного інтерфейсу): run_pipeline() рахує все в пам'яті,
+generate() додатково записує виробничий пакет."""
 from __future__ import annotations
 
-import json
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import cv2
@@ -11,14 +11,16 @@ import numpy as np
 from skimage.metrics import structural_similarity
 
 from .export import preview
-from .export.svg import write_svg
-from .geometry.labels import place_numbers_vector
-from .geometry.planar import build_geometry
+from .export.package import build_package
+from .geometry.labels import NumberSpot, place_numbers_vector
+from .geometry.planar import Geometry, build_geometry
 from .image_io.loader import load_image
+from .palette.specification import compute_spec
 from .pipeline.color_quantization import quantize
-from .pipeline.preprocess import denoise, lab_to_bgr_u8, saliency_map, to_lab
+from .pipeline.preprocess import denoise, saliency_map, to_lab
 from .pipeline.regions import RegionMap, connected_regions, merge_small_regions, remove_protrusions
-from .settings import Settings
+from .quality import warnings as qw
+from .settings import ALGORITHM_VERSION, Settings
 
 PREVIEW_SCALE = 2
 MAX_NARROW_PASSES = 6
@@ -27,15 +29,28 @@ KEEP_CONTRAST = 20.0    # вузька ділянка з контрастом (�
 
 @dataclass
 class Result:
-    regions: RegionMap
+    settings: Settings
+    rm: RegionMap
+    geom: Geometry
+    spots: list[NumberSpot]
+    spec: dict
     report: dict
-    out_dir: Path
+    warnings: list[dict]
+    width_mm: float
+    height_mm: float
+    px_per_mm: float
+    line_mm: float
+    color_img: np.ndarray = field(repr=False, default=None)
+    contour_img: np.ndarray = field(repr=False, default=None)
+    numbered_img: np.ndarray = field(repr=False, default=None)
+    palette_img: np.ndarray = field(repr=False, default=None)
+    compare_img: np.ndarray = field(repr=False, default=None)
+    out_dir: Path | None = None
+    blocked: bool = False
 
 
-def generate(photo: str, settings: Settings, out_dir: str | Path) -> Result:
-    out = Path(out_dir)
-    out.mkdir(parents=True, exist_ok=True)
-    t = {}
+def run_pipeline(photo: str | Path, settings: Settings) -> Result:
+    t: dict = {}
     clock = time.perf_counter()
 
     def lap(name: str) -> None:
@@ -45,10 +60,10 @@ def generate(photo: str, settings: Settings, out_dir: str | Path) -> Result:
         clock = now
 
     p = settings.preset
-    img = load_image(photo, settings.width_mm, settings.height_mm, settings.px_per_mm)
+    ppm = settings.px_per_mm
+    img = load_image(str(photo), settings.width_mm, settings.height_mm, ppm)
     lap("load")
-    smooth = denoise(img.bgr, p.denoise_iterations)
-    lab = to_lab(smooth)
+    lab = to_lab(denoise(img.bgr, p.denoise_iterations))
     sal = saliency_map(img.bgr)
     lap("preprocess")
     k = settings.colors
@@ -56,7 +71,6 @@ def generate(photo: str, settings: Settings, out_dir: str | Path) -> Result:
     lap("quantize")
     L0, col0 = connected_regions(qlabels, k)
     lap("components")
-    ppm = settings.px_per_mm
     base_min_px = p.min_area_mm2 * ppm * ppm
     rm = merge_small_regions(L0, col0, lab, sal, base_min_px)
     lap("merge")
@@ -68,11 +82,12 @@ def generate(photo: str, settings: Settings, out_dir: str | Path) -> Result:
     lap("protrusions")
 
     min_digit_px = p.min_digit_mm * ppm
+    max_digit_px = min_digit_px * 1.6
     line_px = p.line_mm * ppm
-    # вузькі ділянки (номер не поміщається) об'єднуються із сусідами; різко контрастні деталі лишаються
-    # і потрапляють у звіт (розділ 9.3 ТЗ). Кілька проходів, бо після об'єднання радіуси змінюються.
+    # ділянки без місця для номера об'єднуються із сусідами; різко контрастні деталі лишаються
+    # й потрапляють у звіт (розділ 9.3 ТЗ). Кілька проходів, бо після об'єднання радіуси змінюються.
     for _ in range(MAX_NARROW_PASSES):
-        spots = preview.place_numbers(rm, min_digit_px, max_digit_px=min_digit_px * 1.6, line_px=line_px)
+        spots = preview.place_numbers(rm, min_digit_px, max_digit_px, line_px)
         bad = np.array([s.digit_px <= 0 for s in spots])
         if not bad.any():
             break
@@ -83,38 +98,34 @@ def generate(photo: str, settings: Settings, out_dir: str | Path) -> Result:
             break
     lap("numbers")
 
-    # векторна геометрія зі спільними ребрами та номери за полігонами
     geom = build_geometry(rm.labels, sal)
     lap("geometry")
-    max_digit_px = min_digit_px * 1.6
     spots = place_numbers_vector(geom.faces, rm.color, min_digit_px, max_digit_px, line_px)
     lap("labels")
-    svg_info = write_svg(out / "canvas_outline.svg", geom, spots, ppm, img.width_mm, img.height_mm, p.line_mm)
-    lap("svg")
+    spec = compute_spec(rm, geom, settings, ppm)
+    lap("spec")
 
     color_img = preview.render_color(rm)
     contour_img = preview.render_vector(geom.chains, rm.labels.shape, spots, PREVIEW_SCALE, line_px)
-    cv2.imwrite(str(out / "color_preview.png"), color_img)
-    cv2.imwrite(str(out / "contour_preview.png"), contour_img)
-    cv2.imwrite(str(out / "palette.png"), preview.render_palette(rm))
-    cv2.imwrite(str(out / "compare.png"), preview.compare_panel(img.bgr, color_img, contour_img))
+    numbered_img = preview.render_vector(geom.chains, rm.labels.shape, spots, PREVIEW_SCALE, line_px, tint=color_img)
+    palette_img = preview.render_palette(rm)
+    compare_img = preview.compare_panel(img.bgr, color_img, contour_img)
     lap("render")
 
     # метрики схожості (жодна окрема метрика не є абсолютною, розділ 13.4 ТЗ)
-    lab_res = to_lab(color_img)
-    lab_src = to_lab(img.bgr)
-    de = float(np.mean(np.linalg.norm(lab_res - lab_src, axis=2)))
+    de = float(np.mean(np.linalg.norm(to_lab(color_img) - to_lab(img.bgr), axis=2)))
     g1 = cv2.cvtColor(img.bgr, cv2.COLOR_BGR2GRAY)
     g2 = cv2.cvtColor(color_img, cv2.COLOR_BGR2GRAY)
     ssim = float(structural_similarity(g1, g2, data_range=255))
     lap("metrics")
 
-    if not geom.topology["ok"]:
-        img.warnings.append("КРИТИЧНО: перевірка топології не пройдена, виробничий пакет не можна формувати.")
     areas_mm2 = rm.area_px / (ppm * ppm)
+    warns = qw.collect(img.warnings, geom.topology, spots, areas_mm2, settings, spec, k,
+                       int(len(rm.palette_lab)), ppm)
     bm = preview.boundary_mask(rm.labels)
     report = {
         "photo": Path(photo).name,
+        "algorithm_version": ALGORITHM_VERSION,
         "work_size_px": list(img.work_size),
         "canvas_mm": [round(img.width_mm, 1), round(img.height_mm, 1)],
         "mode": settings.mode,
@@ -126,14 +137,21 @@ def generate(photo: str, settings: Settings, out_dir: str | Path) -> Result:
         "regions_without_number_room": int(sum(1 for s in spots if s.digit_px <= 0)),
         "regions_narrow": int(sum(1 for s in spots if 2 * max(s.radius, 0) / ppm < p.min_width_mm)),
         "topology": geom.topology,
-        "svg": svg_info,
+        "spec_totals": spec["totals"],
         "median_region_area_mm2": round(float(np.median(areas_mm2)), 1),
         "boundary_length_m": round(float(bm.sum()) / ppm / 1000.0, 2),
         "mean_delta_e76": round(de, 2),
         "ssim_gray": round(ssim, 3),
-        "warnings": img.warnings,
         "seed": settings.seed,
         "timings_s": t,
     }
-    (out / "report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
-    return Result(rm, report, out)
+    return Result(settings, rm, geom, spots, spec, report, warns, img.width_mm, img.height_mm, ppm, p.line_mm,
+                  color_img, contour_img, numbered_img, palette_img, compare_img)
+
+
+def generate(photo: str | Path, settings: Settings, out_root: str | Path, force: bool = False) -> Result:
+    res = run_pipeline(photo, settings)
+    info = build_package(res, out_root, photo, force=force)
+    res.out_dir = info["dir"]
+    res.blocked = info["blocked"]
+    return res
