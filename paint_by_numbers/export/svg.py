@@ -21,9 +21,15 @@ def write_svg(path: str | Path, geom: Geometry, spots: list[NumberSpot], px_per_
             seg += " Z"
         d.append(seg)
     texts = []
+    leads = []
     for sp in spots:
         if sp.digit_px <= 0:
             continue
+        if sp.anchor is not None:
+            leads.append(f'<line x1="{sp.lead_from[0] * s:.2f}" y1="{sp.lead_from[1] * s:.2f}" '
+                         f'x2="{sp.anchor[0] * s:.2f}" y2="{sp.anchor[1] * s:.2f}"/>')
+            leads.append(f'<circle cx="{sp.anchor[0] * s:.2f}" cy="{sp.anchor[1] * s:.2f}" r="{line_mm * 0.8:.2f}" '
+                         f'stroke="none"/>')
         h_mm = sp.digit_px * s
         fs = h_mm / CAP_HEIGHT_EM
         texts.append(
@@ -35,8 +41,10 @@ def write_svg(path: str | Path, geom: Geometry, spots: list[NumberSpot], px_per_
         f'viewBox="0 0 {width_mm:.4f} {height_mm:.4f}">\n'
         f'<path id="contours" d="{" ".join(d)}" fill="none" stroke="{line_color}" '
         f'stroke-width="{line_mm:.3f}" stroke-linecap="round" stroke-linejoin="round"/>\n'
+        f'<g id="leaders" stroke="{number_color}" stroke-width="{line_mm * 0.5:.3f}" fill="{number_color}">\n'
+        + "\n".join(leads) + "\n</g>\n"
         f'<g id="numbers" font-family="Arial, Helvetica, sans-serif" text-anchor="middle" '
         f'fill="{number_color}">\n' + "\n".join(texts) + "\n</g>\n</svg>\n"
     )
     Path(path).write_text(svg, encoding="utf-8")
-    return {"paths": len(d), "numbers": len(texts), "bytes": len(svg.encode("utf-8"))}
+    return {"paths": len(d), "numbers": len(texts), "leaders": len(leads) // 2, "bytes": len(svg.encode("utf-8"))}

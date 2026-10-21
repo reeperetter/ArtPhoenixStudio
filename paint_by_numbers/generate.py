@@ -14,6 +14,7 @@ from skimage.metrics import structural_similarity
 from .export import preview
 from .export.package import build_package
 from .geometry.labels import NumberSpot, place_numbers_vector
+from .geometry.leaders import place_leaders
 from .geometry.planar import Geometry, build_geometry
 from .image_io.loader import load_image
 from .palette.specification import compute_spec
@@ -114,6 +115,7 @@ def run_pipeline(photo: str | Path, settings: Settings) -> Result:
     geom = build_geometry(rm.labels, sal)
     lap("geometry")
     spots = place_numbers_vector(geom.faces, rm.color, min_digit_px, max_digit_px, line_px)
+    leaders = place_leaders(spots, geom.chains, rm.labels.shape, min_digit_px, line_px, ppm)
     lap("labels")
     spec = compute_spec(rm, geom, settings, ppm)
     lap("spec")
@@ -149,6 +151,7 @@ def run_pipeline(photo: str | Path, settings: Settings) -> Result:
         "regions_final": int(len(rm.area_px)),
         "regions_below_min_area": int((areas_mm2 < p.min_area_mm2 * 0.5).sum()),
         "regions_without_number_room": int(sum(1 for s in spots if s.digit_px <= 0)),
+        "regions_with_leader": int(leaders["placed"]),
         "regions_narrow": int(sum(1 for s in spots if 2 * max(s.radius, 0) / ppm < p.min_width_mm)),
         "topology": geom.topology,
         "priority_zones": zone_report,
@@ -183,6 +186,7 @@ def zone_metrics(zmaps: ZoneMaps, rm: RegionMap, spots: list[NumberSpot], src_bg
     union = np.zeros(dmap.shape, bool)
     out = []
     no_room = {s.region for s in spots if s.digit_px <= 0}
+    lead = {s.region for s in spots if s.anchor is not None}
     for z in zmaps.zones:
         union |= z.inside
         area_mm2 = z.pixels / (ppm * ppm)
@@ -196,6 +200,7 @@ def zone_metrics(zmaps: ZoneMaps, rm: RegionMap, spots: list[NumberSpot], src_bg
             "regions": int(len(inter)),
             "regions_per_100mm2": round(100.0 * len(inter) / area_mm2, 2),
             "regions_without_number_room": int(sum(1 for r in inter.tolist() if r in no_room)),
+            "regions_with_leader": int(sum(1 for r in inter.tolist() if r in lead)),
             "delta_e76": round(float(dmap[z.inside].mean()), 2),
             "ssim_gray": round(float(smap[z.inside].mean()), 3),
         })

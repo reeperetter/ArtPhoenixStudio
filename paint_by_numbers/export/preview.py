@@ -89,6 +89,11 @@ def _draw_numbers(img: np.ndarray, spots: list[NumberSpot], scale: int) -> None:
     for s in spots:
         if s.digit_px <= 0:
             continue
+        if s.anchor is not None:
+            a = np.round(np.array(s.anchor) * scale).astype(int)
+            b = np.round(np.array(s.lead_from) * scale).astype(int)
+            cv2.line(img, tuple(int(v) for v in b), tuple(int(v) for v in a), (90, 90, 90), 1, cv2.LINE_AA)
+            cv2.circle(img, tuple(int(v) for v in a), max(2, scale), (90, 90, 90), -1, cv2.LINE_AA)
         text = str(s.number)
         fs = (s.digit_px * scale) / (base_h if base_h else 22)
         (tw, th), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, fs, 1)

@@ -71,6 +71,13 @@ def write_print_pdf(path: str | Path, geom: Geometry, spots: list[NumberSpot], p
     for sp in spots:
         if sp.digit_px <= 0:
             continue
+        if sp.anchor is not None:
+            c.setStrokeColorRGB(0.2, 0.2, 0.2)
+            c.setLineWidth(line_mm * 0.5 * mm)
+            c.line(sp.lead_from[0] * s * mm, (height_mm - sp.lead_from[1] * s) * mm,
+                   sp.anchor[0] * s * mm, (height_mm - sp.anchor[1] * s) * mm)
+            c.circle(sp.anchor[0] * s * mm, (height_mm - sp.anchor[1] * s) * mm, line_mm * 0.8 * mm,
+                     stroke=0, fill=1)
         h_mm = sp.digit_px * s
         c.setFont(font, h_mm / CAP_HEIGHT_EM * mm)
         c.drawCentredString(sp.x * s * mm, (height_mm - sp.y * s - h_mm / 2) * mm, str(sp.number))

@@ -17,6 +17,10 @@ class NumberSpot:
     y: float
     radius: float      # радіус вписаного кола мінус половина лінії, px (може бути <= 0)
     digit_px: float    # висота цифри, px (0 -> не поміщається)
+    # Виноска (розділ 9.3 ТЗ): якщо номер не вміщається, він стоїть у вільному місці (x, y),
+    # а лінія веде до точки `anchor` усередині ділянки; `lead_from` --- край рамки номера.
+    anchor: tuple[float, float] | None = None
+    lead_from: tuple[float, float] | None = None
 
 
 def digit_height(radius: float, n_digits: int, min_digit_px: float, max_digit_px: float) -> float:

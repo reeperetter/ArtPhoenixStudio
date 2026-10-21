@@ -26,6 +26,10 @@ def collect(img_warnings: list[dict], geom_topology: dict, spots, region_area_mm
     if nr:
         out.append(_w("NUM_NO_ROOM", WARNING, f"{len(nr)} ділянок без місця для номера.",
                       "Зменште кількість кольорів, оберіть режим «Простий» або перевірте ці ділянки вручну.", nr))
+    ld = [s.region for s in spots if s.anchor is not None]
+    if ld:
+        out.append(_w("NUM_LEADER", INFO, f"{len(ld)} ділянок мають номер на виносці (номер стоїть поруч, "
+                      "лінія з крапкою веде до ділянки).", "Перевірте читабельність виносок у щільних місцях.", ld))
     narrow = [s.region for s in spots if 2 * max(s.radius, 0) / px_per_mm < p.min_width_mm]
     if narrow:
         out.append(_w("AREA_NARROW", WARNING, f"{len(narrow)} ділянок вужчі за {p.min_width_mm} мм.",
@@ -50,9 +54,8 @@ def collect(img_warnings: list[dict], geom_topology: dict, spots, region_area_mm
                               "Перевірте координати зони та систему координат (frame)."))
             elif z["regions_without_number_room"]:
                 out.append(_w("ZONE_NUM_NO_ROOM", WARNING, f"У зоні «{z['name']}» {z['regions_without_number_room']} "
-                              "дрібних деталей без місця для номера.",
-                              "Деталі збережено навмисно, але номер у них не вміщається: перевірте їх вручну, зменште вагу зони "
-                              "(weight) або кількість кольорів."))
+                              "дрібних деталей без номера навіть на виносці.",
+                              "Перевірте їх вручну, зменште вагу зони (weight) або кількість кольорів."))
 
     calc = spec["calculation"]
     if calc["provisional"]:
