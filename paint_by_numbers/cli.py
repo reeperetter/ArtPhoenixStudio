@@ -14,7 +14,8 @@ from .settings import PRESETS, Settings
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="paint-by-numbers",
                                  description="Фото -> виробничий пакет картини за номерами")
-    ap.add_argument("photo", help="шлях до фотографії")
+    ap.add_argument("photo", nargs="?", help="шлях до фотографії")
+    ap.add_argument("--selftest", action="store_true", help="самоперевірка збірки: синтетичне фото, пакет, порівняння")
     ap.add_argument("-o", "--out", default="out", help="коренева папка (всередині створюється order_XXXXXX/)")
     ap.add_argument("--order", default="000001", help="номер замовлення")
     ap.add_argument("--name", default="", help="назва проєкту")
@@ -42,6 +43,10 @@ def main(argv: list[str] | None = None) -> int:
                     help="лише намалювати зони на фото (zones_preview.png) і вийти")
     ap.add_argument("--force", action="store_true", help="сформувати пакет попри критичні помилки")
     a = ap.parse_args(argv)
+    if a.selftest:
+        return selftest()
+    if not a.photo:
+        ap.error("потрібен шлях до фотографії")
     if a.colors is not None and not 4 <= a.colors <= 64:
         ap.error("--colors має бути в межах 4..64")
     if a.safety_factor < 1:
@@ -107,6 +112,37 @@ def main(argv: list[str] | None = None) -> int:
         print("ВИРОБНИЧИЙ ПАКЕТ ЗАБЛОКОВАНО критичними помилками (використайте --force лише після перевірки).")
         return 2
     return 0
+
+
+def selftest() -> int:
+    """Перевіряє, що зібрана програма працює: конвеєр, PDF із кирилицею, SVG, порівняння в кількох процесах."""
+    import json
+    import tempfile
+    from pathlib import Path
+
+    import cv2
+    import numpy as np
+
+    from .export.pdf import _register_font
+    with tempfile.TemporaryDirectory() as d:
+        d = Path(d)
+        rng = np.random.default_rng(1)
+        img = np.full((240, 320, 3), (200, 160, 120), np.uint8)
+        cv2.circle(img, (160, 120), 70, (40, 60, 200), -1)
+        img = np.clip(img.astype(int) + rng.integers(-10, 10, img.shape), 0, 255).astype(np.uint8)
+        cv2.imwrite(str(d / "t.png"), img)
+        font_ok = _register_font()[2]
+        res = generate_best(str(d / "t.png"), Settings(width_mm=100.0, order_number="selftest", zones=[
+            {"name": "тест", "shape": "ellipse", "cx": 0.5, "cy": 0.5, "rx": 0.2, "ry": 0.2, "weight": 2}]),
+            d / "out", [("simple", 6), ("balanced", 8)], jobs=2)
+        pk = d / "out" / "order_selftest"
+        need = ["print/canvas_outline.svg", "print/canvas_outline.pdf", "palette/paint_list.csv",
+                "production/production_specification.pdf", "quality/candidates.png", "project/project.json"]
+        missing = [n for n in need if not (pk / n).exists()]
+        topo = json.loads((pk / "quality/quality_report.json").read_text(encoding="utf-8"))["topology"]["ok"]
+        ok = not missing and topo and font_ok and not res.blocked
+        print(f"SELFTEST {'OK' if ok else 'FAILED'}: шрифт з кирилицею={font_ok}, топологія={topo}, відсутні файли={missing}")
+        return 0 if ok else 1
 
 
 if __name__ == "__main__":

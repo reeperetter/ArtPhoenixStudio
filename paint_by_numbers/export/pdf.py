@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
 
 from reportlab.lib import colors
@@ -20,7 +21,18 @@ from .svg import CAP_HEIGHT_EM
 # Кирилиця в специфікації потребує TTF-шрифта. Шукаємо у типових місцях; якщо шрифта немає,
 # специфікація друкується англійською стандартним Helvetica (розділ 25 ТЗ: шрифт для поставки
 # потрібно вибрати й перевірити за ліцензією).
+def resource_dir() -> Path:
+    """Папка ресурсів пакета; у зібраній програмі (PyInstaller) --- тимчасова папка розпакування."""
+    base = getattr(sys, "_MEIPASS", None)
+    return (Path(base) / "paint_by_numbers") if base else Path(__file__).resolve().parent.parent
+
+
+_BUNDLED = resource_dir() / "assets" / "fonts"
+
+# Шрифт DejaVu Sans іде разом із програмою (ліцензія Bitstream Vera/DejaVu дозволяє поширення з
+# умовою зберегти текст ліцензії: assets/fonts/LICENSE-DejaVu.txt), тож кирилиця в PDF працює скрізь.
 _FONT_CANDIDATES = [
+    ("PBN-Sans", str(_BUNDLED / "DejaVuSans.ttf"), str(_BUNDLED / "DejaVuSans-Bold.ttf")),
     ("PBN-Sans", "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"),
     ("PBN-Sans", "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf", "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf"),
     ("PBN-Sans", "C:/Windows/Fonts/arial.ttf", "C:/Windows/Fonts/arialbd.ttf"),

@@ -28,6 +28,7 @@ from .settings import ALGORITHM_VERSION, Settings
 
 PREVIEW_SCALE = 2
 MAX_NARROW_PASSES = 6
+MAX_FINAL_PASSES = 5
 KEEP_CONTRAST = 20.0    # вузька ділянка з контрастом (ΔE76) вище цього лишається та потрапляє у звіт
 
 
@@ -115,11 +116,28 @@ def run_pipeline(photo: str | Path, settings: Settings) -> Result:
             break
     lap("numbers")
 
-    geom = build_geometry(rm.labels, sal)
-    lap("geometry")
-    spots = place_numbers_vector(geom.faces, rm.color, min_digit_px, max_digit_px, line_px)
-    leaders = place_leaders(spots, geom.chains, rm.labels.shape, min_digit_px, line_px, ppm)
-    lap("labels")
+    # Остаточна гарантія (розділ 9.3 ТЗ): кожна ділянка має номер --- або всередині, або на виносці.
+    # Ділянки, що лишилися без номера навіть на виносці, зливаються із сусідом (без винятків за контрастом),
+    # після чого геометрія й номери перераховуються.
+    merged_for_numbers = 0
+    for _ in range(MAX_FINAL_PASSES):
+        geom = build_geometry(rm.labels, sal)
+        spots = place_numbers_vector(geom.faces, rm.color, min_digit_px, max_digit_px, line_px)
+        leaders = place_leaders(spots, geom.chains, rm.labels.shape, min_digit_px, line_px, ppm)
+        bad = np.array([s.digit_px <= 0 for s in spots])
+        if not bad.any():
+            break
+        before = len(rm.area_px)
+        rm = merge_small_regions(rm.labels, rm.color, lab, sal, base_min_px, forced=bad, keep_contrast=None,
+                                 n_before=rm.n_before, zone=zw, zone_floor_px=floor_px)
+        merged_for_numbers += before - len(rm.area_px)
+        if len(rm.area_px) == before:
+            break
+    else:                                          # останній прохід змінив розбиття: перерахувати
+        geom = build_geometry(rm.labels, sal)
+        spots = place_numbers_vector(geom.faces, rm.color, min_digit_px, max_digit_px, line_px)
+        leaders = place_leaders(spots, geom.chains, rm.labels.shape, min_digit_px, line_px, ppm)
+    lap("geometry+labels")
     cat_match = None
     if settings.catalog:                  # реальні фарби: превʼю й метрики далі рахуються за кольорами фарб
         cat_match = match_palette(rm.palette_lab, settings.catalog)
@@ -165,6 +183,7 @@ def run_pipeline(photo: str | Path, settings: Settings) -> Result:
         "regions_below_min_area": int((areas_mm2 < p.min_area_mm2 * 0.5).sum()),
         "regions_without_number_room": int(sum(1 for s in spots if s.digit_px <= 0)),
         "regions_with_leader": int(leaders["placed"]),
+        "regions_merged_for_numbers": int(merged_for_numbers),
         "regions_narrow": int(sum(1 for s in spots if 2 * max(s.radius, 0) / ppm < p.min_width_mm)),
         "topology": geom.topology,
         "priority_zones": zone_report,

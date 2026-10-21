@@ -38,3 +38,17 @@ def test_deterministic_and_valid(tmp_path):
         m = x != y
         assert not np.any(c[x[m]] == c[y[m]])
     assert (a.out_dir / "preview" / "contour_preview.png").exists()
+
+
+def test_every_region_gets_a_number(tmp_path):
+    """Жодної ділянки без номера: на шумному фото всі ділянки мають цифру всередині або на виносці."""
+    rng = np.random.default_rng(7)
+    img = rng.integers(0, 255, (300, 400, 3), dtype=np.uint8)           # максимально «дрібне» фото
+    img = cv2.GaussianBlur(img, (0, 0), 2.0)
+    photo = tmp_path / "noise.png"
+    cv2.imwrite(str(photo), img)
+    res = generate(str(photo), Settings(mode="detailed", n_colors=24, width_mm=150.0, order_number="n"), tmp_path / "o")
+    assert all(s.digit_px > 0 for s in res.spots)
+    assert res.report["regions_without_number_room"] == 0
+    svg = (res.out_dir / "print" / "canvas_outline.svg").read_text(encoding="utf-8")
+    assert svg.count("<text ") == len(res.rm.area_px) == len(res.spots)

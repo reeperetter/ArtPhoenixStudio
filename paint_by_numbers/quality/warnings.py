@@ -24,8 +24,9 @@ def collect(img_warnings: list[dict], geom_topology: dict, spots, region_area_mm
 
     nr = [s.region for s in spots if s.digit_px <= 0]
     if nr:
-        out.append(_w("NUM_NO_ROOM", WARNING, f"{len(nr)} ділянок без місця для номера.",
-                      "Зменште кількість кольорів, оберіть режим «Простий» або перевірте ці ділянки вручну.", nr))
+        out.append(_w("NUM_NO_ROOM", CRITICAL, f"{len(nr)} ділянок без номера (немає місця навіть для виноски).",
+                      "Макет не можна передавати у виробництво: зменште кількість кольорів, оберіть режим «Простий» "
+                      "або перевірте ці ділянки вручну.", nr))
     ld = [s.region for s in spots if s.anchor is not None]
     if ld:
         out.append(_w("NUM_LEADER", INFO, f"{len(ld)} ділянок мають номер на виносці (номер стоїть поруч, "
