@@ -12,6 +12,16 @@ def denoise(bgr: np.ndarray, iterations: int) -> np.ndarray:
     return out
 
 
+def denoise_zoned(bgr: np.ndarray, iterations: int, unit: np.ndarray | None) -> np.ndarray:
+    """Згладжування слабшає в зонах пріоритету (там лишаються дрібніші деталі)."""
+    heavy = denoise(bgr, iterations)
+    if unit is None or iterations <= 1 or not unit.any():
+        return heavy
+    light = denoise(bgr, 1)
+    u = unit[..., None]
+    return np.clip(light.astype(np.float32) * u + heavy.astype(np.float32) * (1.0 - u) + 0.5, 0, 255).astype(np.uint8)
+
+
 def to_lab(bgr: np.ndarray) -> np.ndarray:
     """float32 Lab (L 0..100, a/b приблизно -127..127)."""
     f = bgr.astype(np.float32) / 255.0

@@ -117,3 +117,24 @@ def compare_panel(orig: np.ndarray, color: np.ndarray, contours: np.ndarray, hei
         h, w = im.shape[:2]
         return cv2.resize(im, (int(w * height / h), height), interpolation=cv2.INTER_AREA)
     return np.hstack([fit(orig), fit(color), fit(contours)])
+
+
+def render_zones(bgr: np.ndarray, zmaps) -> np.ndarray:
+    """Фото із підсвіченими зонами пріоритету (для перевірки оператором)."""
+    tint = np.array([40, 60, 235], np.float32)          # червонуватий (BGR)
+    a = (0.30 * zmaps.unit)[..., None]
+    img = (bgr.astype(np.float32) * (1 - a) + tint * a).astype(np.uint8)
+    H, W = img.shape[:2]
+    th = max(2, W // 400)
+    fs = max(0.5, W / 1100)
+    for z in zmaps.zones:
+        pts = np.round(z.polygon_px).astype(np.int32).reshape(-1, 1, 2)
+        cv2.polylines(img, [pts], True, (30, 40, 220), th, cv2.LINE_AA)
+        x, y = int(z.polygon_px[:, 0].min()), int(z.polygon_px[:, 1].min())
+        label = f"{z.name} ({z.weight:g})"
+        org = (max(x, 4), max(y - 6, int(18 * fs)))
+        cv2.putText(img, label.encode("ascii", "replace").decode(), org, cv2.FONT_HERSHEY_SIMPLEX, fs,
+                    (255, 255, 255), th + 2, cv2.LINE_AA)
+        cv2.putText(img, label.encode("ascii", "replace").decode(), org, cv2.FONT_HERSHEY_SIMPLEX, fs,
+                    (30, 40, 220), th, cv2.LINE_AA)
+    return img

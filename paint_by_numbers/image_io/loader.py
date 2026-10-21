@@ -17,6 +17,7 @@ class LoadedImage:
     height_mm: float
     px_per_mm: float
     warnings: list[dict]
+    crop: tuple = (0, 0, 0, 0)  # (x0, y0, x1, y1) у пікселях вихідного фото після EXIF
 
 
 def load_image(path: str, width_mm: float, height_mm: float | None, px_per_mm: float) -> LoadedImage:
@@ -29,6 +30,7 @@ def load_image(path: str, width_mm: float, height_mm: float | None, px_per_mm: f
         im = Image.alpha_composite(bg, im)
     im = im.convert("RGB")
     sw, sh = im.size
+    crop = (0, 0, sw, sh)
 
     if height_mm is None:
         height_mm = width_mm * sh / sw
@@ -40,10 +42,12 @@ def load_image(path: str, width_mm: float, height_mm: float | None, px_per_mm: f
             nw = int(round(sh * target))
             x0 = (sw - nw) // 2
             im = im.crop((x0, 0, x0 + nw, sh))
+            crop = (x0, 0, x0 + nw, sh)
         else:
             nh = int(round(sw / target))
             y0 = (sh - nh) // 2
             im = im.crop((0, y0, sw, y0 + nh))
+            crop = (0, y0, sw, y0 + nh)
         warnings.append({
             "code": "IMG_CROPPED", "severity": "info",
             "message": "Фото обрізано до пропорцій полотна (центральне кадрування).",
@@ -63,4 +67,4 @@ def load_image(path: str, width_mm: float, height_mm: float | None, px_per_mm: f
     interp = cv2.INTER_AREA if cw >= ww else cv2.INTER_CUBIC
     arr = cv2.resize(arr, (ww, wh), interpolation=interp)
     bgr = cv2.cvtColor(arr, cv2.COLOR_RGB2BGR)
-    return LoadedImage(bgr, (sw, sh), (ww, wh), width_mm, height_mm, px_per_mm, warnings)
+    return LoadedImage(bgr, (sw, sh), (ww, wh), width_mm, height_mm, px_per_mm, warnings, crop)

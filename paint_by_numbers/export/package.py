@@ -76,6 +76,9 @@ def build_package(res, out_root: str | Path, photo: str | Path, force: bool = Fa
         cv2.imwrite(str(tmp / "preview/numbered_preview.png"), res.numbered_img)
         cv2.imwrite(str(tmp / "palette/palette.png"), res.palette_img)
         cv2.imwrite(str(tmp / "quality/compare.png"), res.compare_img)
+        if res.zones_img is not None:
+            cv2.imwrite(str(tmp / "quality/zones_preview.png"), res.zones_img)
+            rec("quality/zones_preview.png", "png")
         for r in ("preview/color_preview.png", "preview/contour_preview.png", "preview/numbered_preview.png",
                   "palette/palette.png"):
             rec(r, "png")

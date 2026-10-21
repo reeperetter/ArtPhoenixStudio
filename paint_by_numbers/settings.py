@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, asdict
 
-ALGORITHM_VERSION = "0.4.0"
+ALGORITHM_VERSION = "0.5.0"
 PROJECT_FORMAT_VERSION = 1
 
 
@@ -42,6 +42,8 @@ class Settings:
     safety_factor: float = 1.0                        # K >= 1: шари, втрати, нерівномірність
     coverage_confirmed: bool = False                  # True лише після підтвердження N фізичними тестами
     many_containers_warn: int = 10                    # попередження, якщо одного кольору потрібно більше
+    zones: list = field(default_factory=list)         # зони пріоритету (розділ 7.8 ТЗ), формат у priority_zones.py
+    zone_feather_mm: float = 2.0                      # ширина м'якого краю зони
     extra: dict = field(default_factory=dict)
 
     @property

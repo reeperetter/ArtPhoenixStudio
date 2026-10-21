@@ -8,6 +8,9 @@ import numpy as np
 from scipy import ndimage as ndi
 
 
+ZONE_KEEP_FACTOR = 0.25   # наскільки вага зони знижує поріг контрасту для збереження дрібної деталі
+
+
 @dataclass
 class RegionMap:
     labels: np.ndarray        # HxW int32, компактні id областей 0..R-1
@@ -54,9 +57,12 @@ def merge_small_regions(
     forced: np.ndarray | None = None,
     keep_contrast: float | None = None,
     n_before: int | None = None,
+    zone: np.ndarray | None = None,
+    zone_floor_px: float = 0.0,
 ) -> RegionMap:
     """Малі області приєднуються до найбільш відповідного сусіда (колір + спільна межа).
-    Поріг площі нижчий там, де значущість висока. Сусідні області одного кольору зливаються."""
+    Поріг площі нижчий там, де значущість висока, і ще нижчий у зонах пріоритету (zone = вага зони
+    в кожному пікселі). Сусідні області одного кольору зливаються."""
     R = int(L.max()) + 1
     flat = L.ravel()
     area = np.bincount(flat, minlength=R).astype(np.float64)
@@ -64,6 +70,7 @@ def merge_small_regions(
         [np.bincount(flat, weights=lab[..., i].ravel(), minlength=R) for i in range(3)], axis=1
     )
     sumimp = np.bincount(flat, weights=importance.ravel(), minlength=R)
+    sumzone = (np.bincount(flat, weights=zone.ravel(), minlength=R) if zone is not None else np.zeros(R))
     col = color.copy()
     force = np.zeros(R, bool) if forced is None else forced.copy()
 
@@ -77,12 +84,17 @@ def merge_small_regions(
     alive = np.ones(R, bool)
 
     def thr(r: int) -> float:
-        return base_min_px * (1.0 - importance_relief * sumimp[r] / area[r])
+        t0 = base_min_px * (1.0 - importance_relief * sumimp[r] / area[r])
+        if zone is None:
+            return t0
+        # у зоні пріоритету поріг нижчий, але не нижче площі, де ще поміщається номер (zone_floor_px)
+        return max(t0 / (1.0 + sumzone[r] / area[r]), min(t0, zone_floor_px))
 
     def absorb(keep: int, gone: int) -> None:
         area[keep] += area[gone]
         sumlab[keep] += sumlab[gone]
         sumimp[keep] += sumimp[gone]
+        sumzone[keep] += sumzone[gone]
         for m, b in adj[gone].items():
             if m == keep:
                 continue
@@ -124,7 +136,8 @@ def merge_small_regions(
                 best, best_cost = m, cost
         # примусово об'єднувана ділянка, що різко контрастує з усіма сусідами (зіниця, риса обличчя),
         # лишається: її буде вирішено геометрією або позначено у звіті
-        if keep_contrast is not None and force[r] and area[r] >= thr(r) and dmin >= keep_contrast:
+        if (keep_contrast is not None and force[r] and area[r] >= thr(r)
+                and dmin >= keep_contrast / (1.0 + ZONE_KEEP_FACTOR * sumzone[r] / area[r])):
             continue
         col[r] = col[best]
         absorb(best, r)
@@ -156,7 +169,8 @@ def merge_small_regions(
                      R if n_before is None else n_before)
 
 
-def remove_protrusions(L: np.ndarray, radius_px: float, sal: np.ndarray, keep_sal: float = 0.75) -> np.ndarray:
+def remove_protrusions(L: np.ndarray, radius_px: float, sal: np.ndarray, keep_sal: float = 0.75,
+                       protect: np.ndarray | None = None) -> np.ndarray:
     """Прибирає вузькі виступи й перемички шириною менше 2*radius_px (морфологічне розкриття кожної
     області). Вилучені пікселі переходять до найближчої області, що збереглася. У зонах високої
     значущості (sal >= keep_sal) нічого не змінюється. Результат може мати розірвані області:
@@ -186,6 +200,8 @@ def remove_protrusions(L: np.ndarray, radius_px: float, sal: np.ndarray, keep_sa
             op = op[r:-r, r:-r]
         lost[y0:y1, x0:x1] |= (m > 0) & (op == 0)
     lost &= sal < keep_sal
+    if protect is not None:          # у зонах пріоритету виступи не прибираються
+        lost &= ~protect
     if not lost.any():
         return L
     keep = ~lost

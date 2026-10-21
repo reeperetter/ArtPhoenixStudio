@@ -3,7 +3,8 @@ from __future__ import annotations
 import argparse
 import sys
 
-from .generate import generate
+from .generate import generate, preview_zones
+from .pipeline.priority_zones import ZoneError, load_zones_file, parse_zones
 from .quality.warnings import summarize
 from .settings import PRESETS, Settings
 
@@ -26,16 +27,40 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--safety-factor", type=float, default=1.0, help="коефіцієнт запасу K (>=1)")
     ap.add_argument("--coverage-confirmed", action="store_true",
                     help="норму N підтверджено фізичними тестами (інакше розрахунок орієнтовний)")
+    ap.add_argument("--zones", default=None, help="JSON-файл із зонами пріоритету (обличчя, очі тощо)")
+    ap.add_argument("--zone-feather-mm", type=float, default=2.0, help="ширина м'якого краю зони, мм")
+    ap.add_argument("--preview-zones", action="store_true",
+                    help="лише намалювати зони на фото (zones_preview.png) і вийти")
     ap.add_argument("--force", action="store_true", help="сформувати пакет попри критичні помилки")
     a = ap.parse_args(argv)
     if a.colors is not None and not 4 <= a.colors <= 64:
         ap.error("--colors має бути в межах 4..64")
     if a.safety_factor < 1:
         ap.error("--safety-factor має бути >= 1")
+    zones = []
+    if a.zones:
+        try:
+            zones = load_zones_file(a.zones)
+            parse_zones(zones)
+        except (ZoneError, OSError) as e:
+            print(f"Помилка в зонах пріоритету: {e}", file=sys.stderr)
+            return 2
     s = Settings(mode=a.mode, n_colors=a.colors, width_mm=a.width_mm, height_mm=a.height_mm,
                  px_per_mm=a.px_per_mm, seed=a.seed, order_number=a.order, project_name=a.name,
                  coverage_mm2_per_container=a.coverage_mm2, safety_factor=a.safety_factor,
-                 coverage_confirmed=a.coverage_confirmed)
+                 coverage_confirmed=a.coverage_confirmed, zones=zones, zone_feather_mm=a.zone_feather_mm)
+    if a.preview_zones:
+        import os
+        import cv2
+        img = preview_zones(a.photo, s)
+        if img is None:
+            print("Зони не задано (--zones).", file=sys.stderr)
+            return 2
+        os.makedirs(a.out, exist_ok=True)
+        path = os.path.join(a.out, "zones_preview.png")
+        cv2.imwrite(path, img)
+        print(f"Перегляд зон: {path}")
+        return 0
     res = generate(a.photo, s, a.out, force=a.force)
     sm = summarize(res.warnings)
     t = res.spec["totals"]
