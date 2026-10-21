@@ -1,8 +1,0 @@
-{"zones": [
-  {"name": "face-man",   "shape": "ellipse", "cx": 0.52, "cy": 0.335, "rx": 0.23, "ry": 0.165, "weight": 2},
-  {"name": "face-woman", "shape": "ellipse", "cx": 0.33, "cy": 0.56,  "rx": 0.17, "ry": 0.12,  "weight": 2},
-  {"name": "eyes-man",   "shape": "rect", "x0": 0.40, "y0": 0.275, "x1": 0.62, "y1": 0.335, "weight": 3.5},
-  {"name": "eyes-woman", "shape": "rect", "x0": 0.21, "y0": 0.51, "x1": 0.46, "y1": 0.57, "weight": 3.5},
-  {"name": "mouth-man",  "shape": "rect", "x0": 0.47, "y0": 0.40, "x1": 0.65, "y1": 0.435, "weight": 3},
-  {"name": "mouth-woman","shape": "rect", "x0": 0.29, "y0": 0.605, "x1": 0.43, "y1": 0.645, "weight": 3}
-]}
