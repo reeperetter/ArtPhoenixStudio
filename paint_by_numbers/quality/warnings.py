@@ -57,6 +57,18 @@ def collect(img_warnings: list[dict], geom_topology: dict, spots, region_area_mm
                               "дрібних деталей без номера навіть на виносці.",
                               "Перевірте їх вручну, зменште вагу зони (weight) або кількість кольорів."))
 
+    if settings.catalog:
+        far = [pp["number"] for pp in spec["paints"]
+               if pp["catalog_delta_e2000"] is not None and pp["catalog_delta_e2000"] > settings.catalog_max_de2000]
+        if far:
+            out.append(_w("CAT_FAR", WARNING, f"Для {len(far)} кольорів у каталозі немає близької фарби "
+                          f"(ΔE2000 > {settings.catalog_max_de2000:g}).",
+                          "Додайте в каталог фарби поближчі до цих кольорів або змішуйте вручну.", far))
+        dup = [pp["number"] for pp in spec["paints"] if pp["catalog_duplicate"]]
+        if dup:
+            out.append(_w("CAT_TOO_SMALL", WARNING, f"У каталозі менше фарб ({len(settings.catalog)}), ніж кольорів "
+                          f"у картині: {len(dup)} кольорів отримали фарбу, що вже використана.",
+                          "Зменште кількість кольорів або розширте каталог.", dup))
     calc = spec["calculation"]
     if calc["provisional"]:
         out.append(_w("SPEC_PROVISIONAL", WARNING, calc["note"],

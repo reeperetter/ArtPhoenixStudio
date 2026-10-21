@@ -15,6 +15,7 @@ from .export import preview
 from .export.package import build_package
 from .geometry.labels import NumberSpot, place_numbers_vector
 from .geometry.leaders import place_leaders
+from .palette.catalog import match_palette
 from .geometry.planar import Geometry, build_geometry
 from .image_io.loader import load_image
 from .palette.specification import compute_spec
@@ -117,7 +118,11 @@ def run_pipeline(photo: str | Path, settings: Settings) -> Result:
     spots = place_numbers_vector(geom.faces, rm.color, min_digit_px, max_digit_px, line_px)
     leaders = place_leaders(spots, geom.chains, rm.labels.shape, min_digit_px, line_px, ppm)
     lap("labels")
-    spec = compute_spec(rm, geom, settings, ppm)
+    cat_match = None
+    if settings.catalog:                  # реальні фарби: превʼю й метрики далі рахуються за кольорами фарб
+        cat_match = match_palette(rm.palette_lab, settings.catalog)
+        rm.palette_lab = np.array([m.paint["lab"] for m in cat_match], np.float32)
+    spec = compute_spec(rm, geom, settings, ppm, cat_match)
     lap("spec")
 
     color_img = preview.render_color(rm)
@@ -138,6 +143,12 @@ def run_pipeline(photo: str | Path, settings: Settings) -> Result:
     areas_mm2 = rm.area_px / (ppm * ppm)
     warns = qw.collect(img.warnings, geom.topology, spots, areas_mm2, settings, spec, k,
                        int(len(rm.palette_lab)), ppm, zone_report)
+    catalog_report = None
+    if cat_match:
+        des = [m.delta_e2000 for m in cat_match]
+        catalog_report = {"paints_in_catalog": len(settings.catalog), "mean_delta_e2000": round(float(np.mean(des)), 2),
+                          "max_delta_e2000": round(float(np.max(des)), 2),
+                          "duplicates": int(sum(m.duplicate for m in cat_match))}
     bm = preview.boundary_mask(rm.labels)
     report = {
         "photo": Path(photo).name,
@@ -155,6 +166,7 @@ def run_pipeline(photo: str | Path, settings: Settings) -> Result:
         "regions_narrow": int(sum(1 for s in spots if 2 * max(s.radius, 0) / ppm < p.min_width_mm)),
         "topology": geom.topology,
         "priority_zones": zone_report,
+        "catalog": catalog_report,
         "spec_totals": spec["totals"],
         "median_region_area_mm2": round(float(np.median(areas_mm2)), 1),
         "boundary_length_m": round(float(bm.sum()) / ppm / 1000.0, 2),

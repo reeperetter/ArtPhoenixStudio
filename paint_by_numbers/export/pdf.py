@@ -135,12 +135,12 @@ def write_spec_pdf(path: str | Path, spec: dict, meta: dict, warnings: list[dict
     head = [t["num"], t["code"], t["color"], t["hexc"], t["area"], t["regions"], t["cont"], t["vol"]]
     rows = [head]
     for p in spec["paints"]:
-        rows.append([p["number"], p["paint_code"], "", p["hex"], f'{p["area_mm2"]:,.0f}'.replace(",", " "),
+        rows.append([p["number"], p["paint_code"] + (f'\n{p["paint_name"]}' if p["paint_name"] else ""), "", p["hex"], f'{p["area_mm2"]:,.0f}'.replace(",", " "),
                      p["regions"], p["containers"], f'{p["total_ml"]:g}'])
     tot = spec["totals"]
     rows.append([t["total"], "", "", "", f'{tot["canvas_area_mm2"]:,.0f}'.replace(",", " "),
                  sum(p["regions"] for p in spec["paints"]), tot["containers"], f'{tot["total_ml"]:g}'])
-    tbl = Table(rows, colWidths=[12 * mm, 24 * mm, 20 * mm, 22 * mm, 30 * mm, 18 * mm, 22 * mm, 22 * mm], repeatRows=1)
+    tbl = Table(rows, colWidths=[12 * mm, 40 * mm, 18 * mm, 20 * mm, 26 * mm, 16 * mm, 20 * mm, 18 * mm], repeatRows=1)
     style = [
         ("FONTNAME", (0, 0), (-1, -1), font), ("FONTSIZE", (0, 0), (-1, -1), 9),
         ("FONTNAME", (0, 0), (-1, 0), bold), ("FONTNAME", (0, -1), (-1, -1), bold),

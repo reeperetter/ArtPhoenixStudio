@@ -76,7 +76,7 @@ def test_package_structure_files_and_pdf_size(photo, tmp_path):
     # CSV: по рядку на колір + підсумок, розділювач ';'
     rows = list(csv.reader(open(d / "palette/paint_list.csv", encoding="utf-8-sig"), delimiter=";"))
     assert len(rows) == 1 + len(res.spec["paints"]) + 1
-    assert rows[-1][0] == "TOTAL" and int(rows[-1][6]) == res.spec["totals"]["containers"]
+    assert rows[-1][0] == "TOTAL" and int(rows[-1][8]) == res.spec["totals"]["containers"]
     proj = json.loads((d / "project/project.json").read_text(encoding="utf-8"))
     assert proj["project_format_version"] == 1 and proj["settings"]["seed"] == s.seed
     assert len(proj["source"]["sha256"]) == 64

@@ -22,7 +22,7 @@ def containers_needed(area_mm2: float, coverage_mm2: float | None, safety: float
     return max(1, math.ceil(round(area_mm2 * safety / coverage_mm2, 9)))
 
 
-def compute_spec(rm: RegionMap, geom: Geometry, settings: Settings, px_per_mm: float) -> dict:
+def compute_spec(rm: RegionMap, geom: Geometry, settings: Settings, px_per_mm: float, cat_match=None) -> dict:
     k = len(rm.palette_lab)
     area_px = np.zeros(k)
     nreg = np.zeros(k, int)
@@ -38,9 +38,13 @@ def compute_spec(rm: RegionMap, geom: Geometry, settings: Settings, px_per_mm: f
     for i in range(k):
         b, g, r_ = (int(v) for v in bgr[i])
         n = containers_needed(float(area_mm2[i]), N, K)
+        m = cat_match[i] if cat_match else None
         paints.append({
             "number": i + 1,
-            "paint_code": f"P-{i + 1:03d}",
+            "paint_code": m.paint["code"] if m else f"P-{i + 1:03d}",
+            "paint_name": m.paint["name"] if m else "",
+            "catalog_delta_e2000": round(m.delta_e2000, 2) if m else None,
+            "catalog_duplicate": bool(m.duplicate) if m else False,
             "hex": f"#{r_:02X}{g:02X}{b:02X}",
             "lab": [round(float(v), 2) for v in rm.palette_lab[i]],
             "area_mm2": round(float(area_mm2[i]), 1),

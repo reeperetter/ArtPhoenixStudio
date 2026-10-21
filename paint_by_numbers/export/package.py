@@ -33,7 +33,7 @@ def _write_json(path: Path, data) -> None:
 
 
 def _write_csv(path: Path, spec: dict) -> None:
-    cols = ["number", "paint_code", "hex", "area_mm2", "area_share_pct", "regions", "containers",
+    cols = ["number", "paint_code", "paint_name", "catalog_delta_e2000", "hex", "area_mm2", "area_share_pct", "regions", "containers",
             "container_ml", "total_ml"]
     # ';' і BOM: так файл коректно відкривається в Excel з українськими регіональними налаштуваннями
     with open(path, "w", newline="", encoding="utf-8-sig") as f:
@@ -42,7 +42,7 @@ def _write_csv(path: Path, spec: dict) -> None:
         for p in spec["paints"]:
             w.writerow([p[c] for c in cols] + ["orientational" if spec["calculation"]["provisional"] else "confirmed"])
         t = spec["totals"]
-        w.writerow(["TOTAL", "", "", t["canvas_area_mm2"], 100, "", t["containers"], "", t["total_ml"], ""])
+        w.writerow(["TOTAL", "", "", "", "", t["canvas_area_mm2"], 100, "", t["containers"], "", t["total_ml"], ""])
 
 
 def build_package(res, out_root: str | Path, photo: str | Path, force: bool = False) -> dict:
@@ -125,7 +125,8 @@ def build_package(res, out_root: str | Path, photo: str | Path, force: bool = Fa
             "effective": {"colors": s.colors, "line_mm": res.line_mm, "canvas_mm": [res.width_mm, res.height_mm],
                           "px_per_mm": res.px_per_mm},
             "source": {"file": src_rel, "sha256": _sha256(tmp / src_rel), "original_name": photo.name},
-            "palette": [{"number": p["number"], "paint_code": p["paint_code"], "hex": p["hex"], "lab": p["lab"]}
+            "palette": [{"number": p["number"], "paint_code": p["paint_code"], "paint_name": p["paint_name"],
+                         "hex": p["hex"], "lab": p["lab"]}
                         for p in res.spec["paints"]],
             "regions_file": "project/regions.npz",
             "spec_calculation": res.spec["calculation"],

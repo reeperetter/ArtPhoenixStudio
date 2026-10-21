@@ -44,6 +44,8 @@ class Settings:
     many_containers_warn: int = 10                    # попередження, якщо одного кольору потрібно більше
     zones: list = field(default_factory=list)         # зони пріоритету (розділ 7.8 ТЗ), формат у priority_zones.py
     zone_feather_mm: float = 2.0                      # ширина м'якого краю зони
+    catalog: list = field(default_factory=list)       # каталог фарб (palette/catalog.py); порожній -> без підбору
+    catalog_max_de2000: float = 10.0                  # гіпотеза: далі за цей поріг колір фарби помітно відрізняється
     extra: dict = field(default_factory=dict)
 
     @property
