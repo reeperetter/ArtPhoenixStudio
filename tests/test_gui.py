@@ -72,3 +72,28 @@ def test_window_end_to_end(tmp_path, monkeypatch):
     assert (tmp_path / "out" / "order_000001" / "production" / "production_specification.pdf").exists()
     w.grab().save(str(tmp_path / "shot.png"))
     w.close()
+
+
+def test_window_compare_variants(tmp_path, monkeypatch):
+    from PySide6.QtWidgets import QApplication, QMessageBox
+    import paint_by_numbers.gui.main_window as mw
+    app = QApplication.instance() or QApplication([])
+    monkeypatch.setattr(QMessageBox, "information", lambda *a, **k: None)
+    # два варіанти замість дев'яти, щоб тест був швидким
+    real = mw.default_variants
+    monkeypatch.setattr(mw, "default_variants", lambda s: real(s, ["simple"], [6, 8]))
+    rng = np.random.default_rng(4)
+    img = np.full((240, 320, 3), (200, 160, 120), np.uint8)
+    cv2.circle(img, (160, 120), 70, (40, 60, 200), -1)
+    img = np.clip(img.astype(int) + rng.integers(-10, 10, img.shape), 0, 255).astype(np.uint8)
+    photo = tmp_path / "c.png"
+    cv2.imwrite(str(photo), img)
+    w = mw.MainWindow()
+    w.show()
+    w.open_photo(str(photo))
+    w.sp_w.setValue(100)
+    w.compare_variants()
+    _wait(w, lambda: w.variant_rows and w.res is not None and w.job is None, timeout=180)
+    assert w.tbl_var.rowCount() == 2 and not w.cb_auto_colors.isChecked()
+    assert w.sp_colors.value() in (6, 8) and w.res.settings.colors == w.sp_colors.value()
+    w.close()

@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import sys
 
+from .compare import default_variants, generate_best
 from .generate import generate, preview_zones
 from .palette.catalog import CatalogError, load_catalog
 from .pipeline.priority_zones import ZoneError, load_zones_file, parse_zones
@@ -32,6 +33,11 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--zone-feather-mm", type=float, default=2.0, help="ширина м'якого краю зони, мм")
     ap.add_argument("--catalog", default=None, help="JSON-каталог фарб: кольори буде замінено найближчими фарбами (CIEDE2000)")
     ap.add_argument("--catalog-max-de", type=float, default=10.0, help="поріг ΔE2000 для попередження CAT_FAR")
+    ap.add_argument("--compare", action="store_true",
+                    help="перебрати варіанти (режим x кількість кольорів), обрати найкращий і зібрати для нього пакет")
+    ap.add_argument("--compare-modes", default=None, help="режими для порівняння через кому (типово всі)")
+    ap.add_argument("--compare-colors", default=None, help="кількості кольорів через кому (типово типове значення режиму +-8)")
+    ap.add_argument("--jobs", type=int, default=None, help="кількість процесів для порівняння (типово до 4)")
     ap.add_argument("--preview-zones", action="store_true",
                     help="лише намалювати зони на фото (zones_preview.png) і вийти")
     ap.add_argument("--force", action="store_true", help="сформувати пакет попри критичні помилки")
@@ -71,7 +77,23 @@ def main(argv: list[str] | None = None) -> int:
         cv2.imwrite(path, img)
         print(f"Перегляд зон: {path}")
         return 0
-    res = generate(a.photo, s, a.out, force=a.force)
+    if a.compare:
+        try:
+            modes = [m.strip() for m in a.compare_modes.split(",")] if a.compare_modes else None
+            cols = [int(c) for c in a.compare_colors.split(",")] if a.compare_colors else None
+            variants = default_variants(s, modes, cols)
+        except ValueError as e:
+            ap.error(str(e))
+        print(f"Порівняння {len(variants)} варіантів…")
+        res = generate_best(a.photo, s, a.out, variants, a.jobs, force=a.force,
+                            progress=lambda i, n: print(f"  {i}/{n}", flush=True))
+        sel = res.candidates["selected"]
+        print(f"Обрано: режим {sel['mode']}, кольорів {sel['colors']}" if sel
+              else "Усі варіанти мають критичні помилки; показано перший.")
+        if res.candidates["note"]:
+            print("  Увага: " + res.candidates["note"])
+    else:
+        res = generate(a.photo, s, a.out, force=a.force)
     sm = summarize(res.warnings)
     t = res.spec["totals"]
     print(f"Пакет: {res.out_dir}")

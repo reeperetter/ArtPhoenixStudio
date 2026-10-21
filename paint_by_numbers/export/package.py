@@ -79,6 +79,11 @@ def build_package(res, out_root: str | Path, photo: str | Path, force: bool = Fa
         if res.zones_img is not None:
             cv2.imwrite(str(tmp / "quality/zones_preview.png"), res.zones_img)
             rec("quality/zones_preview.png", "png")
+        if getattr(res, "candidates", None) is not None:
+            cv2.imwrite(str(tmp / "quality/candidates.png"), res.candidates_img)
+            rec("quality/candidates.png", "png")
+            _write_json(tmp / "quality/candidates.json", res.candidates)
+            rec("quality/candidates.json", "json")
         for r in ("preview/color_preview.png", "preview/contour_preview.png", "preview/numbered_preview.png",
                   "palette/palette.png"):
             rec(r, "png")

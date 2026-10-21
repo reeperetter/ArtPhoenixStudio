@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QButtonGroup, QCheckBox, QComb
                                QSpinBox, QSplitter, QTableWidget, QTableWidgetItem, QTabWidget, QToolButton,
                                QVBoxLayout, QWidget)
 
+from ..compare import default_variants, select_best
 from ..generate import run_pipeline
 from ..export.package import build_package
 from ..image_io.loader import load_image
@@ -51,6 +52,7 @@ class MainWindow(QMainWindow):
         self.zones: list[dict] = []
         self.res = None
         self.job: Job | None = None
+        self._pending_apply: int | None = None
         self._reload_timer = QTimer(self, singleShot=True, interval=400)
         self._reload_timer.timeout.connect(self._reload_canvas)
         self._build_ui()
@@ -180,6 +182,11 @@ class MainWindow(QMainWindow):
         self.btn_gen = QPushButton("Створити превʼю")
         self.btn_gen.setStyleSheet("font-weight: bold; padding: 6px;")
         self.btn_gen.clicked.connect(self.generate)
+        self.btn_cmp = QPushButton("Підібрати найкращий варіант")
+        self.btn_cmp.setToolTip("Перебирає режими й кількості кольорів (до 9 варіантів, кілька хвилин), "
+                                "обирає найкращий за формулою з compare.py і будує його превʼю")
+        self.btn_cmp.clicked.connect(self.compare_variants)
+        v.addWidget(self.btn_cmp)
         f = QFormLayout()
         self.ed_order = QLineEdit("000001")
         self.ed_name = QLineEdit()
@@ -214,10 +221,12 @@ class MainWindow(QMainWindow):
         self.view_numbers = ImageView()
         self.view_color = ImageView()
         self.view_compare = ImageView()
+        self.view_variants = ImageView()
         self.tabs.addTab(self.canvas, "Фото і зони")
         self.tabs.addTab(self.view_numbers, "Контури з номерами")
         self.tabs.addTab(self.view_color, "Кольори")
         self.tabs.addTab(self.view_compare, "Порівняння")
+        self.tabs.addTab(self.view_variants, "Варіанти")
         right = QWidget()
         rv = QVBoxLayout(right)
         rv.setContentsMargins(0, 0, 0, 0)
@@ -227,9 +236,19 @@ class MainWindow(QMainWindow):
         self.tbl.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.tbl.verticalHeader().setVisible(False)
         self.lst_warn = QListWidget()
+        self.tbl_var = QTableWidget(0, 9)
+        self.tbl_var.setHorizontalHeaderLabels(["Режим", "Кольорів", "Оцінка", "ΔE", "SSIM", "Ділянок",
+                                                "Без номера", "Виносок", "Статус"])
+        self.tbl_var.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.tbl_var.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.tbl_var.verticalHeader().setVisible(False)
+        self.tbl_var.setToolTip("Подвійний клік: застосувати варіант і створити превʼю")
+        self.tbl_var.cellDoubleClicked.connect(self._apply_variant)
+        self.variant_rows: list[dict] = []
         bottom = QTabWidget()
         bottom.addTab(self.tbl, "Специфікація фарб")
         bottom.addTab(self.lst_warn, "Попередження")
+        bottom.addTab(self.tbl_var, "Варіанти")
         self.bottom = bottom
         rv.addWidget(bottom, 2)
         split.addWidget(right)
@@ -405,6 +424,7 @@ class MainWindow(QMainWindow):
     def _update_buttons(self, busy: bool = False) -> None:
         has = bool(self.photo)
         self.btn_gen.setEnabled(has and not busy)
+        self.btn_cmp.setEnabled(has and not busy)
         self.btn_save.setEnabled(self.res is not None and not busy)
         self.btn_open.setEnabled(not busy)
 
@@ -434,6 +454,9 @@ class MainWindow(QMainWindow):
     def _job_finished(self) -> None:
         self.job = None
         self._busy(False)
+        if self._pending_apply is not None:          # відкладене застосування обраного варіанта
+            row, self._pending_apply = self._pending_apply, None
+            self._apply_variant(row)
 
     def _job_failed(self, msg: str) -> None:
         self.lbl_status.setText("Помилка")
@@ -509,3 +532,65 @@ class MainWindow(QMainWindow):
             return
         self.lbl_status.setText(f"Пакет збережено: {info['dir']}")
         QMessageBox.information(self, "Готово", f"Пакет збережено:\n{info['dir']}")
+
+    # ------------------------------------------------------------------ порівняння варіантів
+    def compare_variants(self) -> None:
+        if not self.photo or self.job:
+            return
+        try:
+            s = self.make_settings()
+        except ZoneError as e:
+            QMessageBox.warning(self, "Помилка в зонах", str(e))
+            return
+        photo = self.photo
+        variants = default_variants(s)
+        self.res = None
+        self._busy(True, f"Порівняння {len(variants)} варіантів… (кілька хвилин; можна не чекати біля екрана)")
+        self.job = Job(lambda: select_best(photo, s, variants), self)
+        self.job.done.connect(self._compared)
+        self.job.failed.connect(self._job_failed)
+        self.job.finished.connect(self._job_finished)
+        self.job.start()
+
+    def _compared(self, out) -> None:
+        chosen, rows, best, report, sheet = out
+        self.variant_rows = rows
+        self.view_variants.set_image(sheet)
+        self.tbl_var.setRowCount(len(rows))
+        for i, r in enumerate(rows):
+            if "error" in r:
+                vals = [MODE_NAMES[r["mode"]], r["colors_requested"], "", "", "", "", "", "", "помилка"]
+            else:
+                status = "ОБРАНО" if i == best else ("заблоковано" if r["critical"] else "")
+                vals = [MODE_NAMES[r["mode"]], r["colors_requested"], f'{r["score"]:.3f}',
+                        f'{r["delta_e76_weighted"]:.1f}', f'{r["ssim"]:.2f}', r["regions"],
+                        r["regions_no_number"], r["regions_leader"], status]
+            for j, v in enumerate(vals):
+                it = QTableWidgetItem(str(v))
+                it.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                if i == best:
+                    it.setBackground(QBrush(QColor("#d9f2d9")))
+                self.tbl_var.setItem(i, j, it)
+        self.tbl_var.resizeColumnsToContents()
+        self.bottom.setCurrentWidget(self.tbl_var)
+        if chosen is None:
+            self.tabs.setCurrentWidget(self.view_variants)
+            self.lbl_status.setText("Усі варіанти мають критичні помилки або не збудувалися; перегляньте таблицю.")
+            return
+        note = f" {report['note']}" if report.get("note") else ""
+        self.lbl_status.setText(f"Обрано: {MODE_NAMES[chosen.mode]}, {chosen.n_colors} кольорів.{note}")
+        self._pending_apply = best           # задача ще не завершена: застосуємо в _job_finished
+
+    def _apply_variant(self, row: int, _col: int = 0) -> None:
+        if not 0 <= row < len(self.variant_rows) or "error" in self.variant_rows[row] or self.job:
+            return
+        r = self.variant_rows[row]
+        for w in (self.cmb_mode, self.cb_auto_colors, self.sp_colors):
+            w.blockSignals(True)
+        self.cmb_mode.setCurrentIndex(list(PRESETS).index(r["mode"]))
+        self.cb_auto_colors.setChecked(False)
+        self.sp_colors.setEnabled(True)
+        self.sp_colors.setValue(r["colors_requested"])
+        for w in (self.cmb_mode, self.cb_auto_colors, self.sp_colors):
+            w.blockSignals(False)
+        QTimer.singleShot(0, self.generate)

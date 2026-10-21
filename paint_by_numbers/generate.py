@@ -50,6 +50,8 @@ class Result:
     palette_img: np.ndarray = field(repr=False, default=None)
     compare_img: np.ndarray = field(repr=False, default=None)
     zones_img: np.ndarray = field(repr=False, default=None)
+    candidates: dict | None = None             # звіт порівняння варіантів (compare.py)
+    candidates_img: np.ndarray = field(repr=False, default=None)
     out_dir: Path | None = None
     blocked: bool = False
 

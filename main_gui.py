@@ -2,4 +2,5 @@ import sys
 
 from paint_by_numbers.gui.app import main
 
-sys.exit(main())
+if __name__ == "__main__":       # охорона потрібна: порівняння варіантів запускає дочірні процеси
+    sys.exit(main())
