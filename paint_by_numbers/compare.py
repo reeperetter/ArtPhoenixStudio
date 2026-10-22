@@ -9,6 +9,7 @@
     fidelity    = 0.5 * (1 - clip(dE / DE_REF, 0, 1)) + 0.5 * SSIM   (dE: зважена за зонами, якщо вони є)
     penalty     = 4 * частка ділянок без номера + 0.5 * частка виносок + 1.0 * частка вузьких
                   + 0.5 * частка дрібних + 0.3 * clip(щільність ділянок / DENSITY_REF, 0, 1)
+                  + cost_weight * clip(ємностей фарби / CONTAINERS_REF, 0, 1)   (витрати на матеріали)
     workability = 1 - clip(penalty, 0, 1)
     score       = W_FIDELITY * fidelity + W_WORK * workability
 Варіанти з критичними попередженнями (блокування виробництва) не обираються."""
@@ -32,6 +33,8 @@ from .settings import PRESETS, Settings
 DE_REF = 25.0            # ΔE76, при якому внесок точності кольору в оцінку нульовий
 DENSITY_REF = 150.0      # ділянок на 100 см², за якого складність вважається граничною
 W_FIDELITY, W_WORK = 0.6, 0.4
+CONTAINERS_REF = 48      # ємностей фарби, за якої витрати на матеріали вважаються граничними (гіпотеза)
+COST_WEIGHT = 0.3        # внесок витрат на фарбу у штраф; 0 вимикає (--cost-weight)
 COLOR_STEP = 8
 MARGIN_NOTE = 0.02       # різниця оцінок, нижче якої вибір вважається неоднозначним (гіпотеза)
 MODE_ORDER = list(PRESETS)       # «простіший» режим переважає при рівності
@@ -73,11 +76,12 @@ def metrics_of(res: Result, seconds: float) -> dict:
     }
 
 
-def score_of(m: dict) -> dict:
+def score_of(m: dict, cost_weight: float = COST_WEIGHT) -> dict:
     n = max(m["regions"], 1)
     fid = 0.5 * (1.0 - min(max(m["delta_e76_weighted"] / DE_REF, 0.0), 1.0)) + 0.5 * min(max(m["ssim"], 0.0), 1.0)
     pen = (4.0 * m["regions_no_number"] / n + 0.5 * m["regions_leader"] / n + 1.0 * m["regions_narrow"] / n
-           + 0.5 * m["regions_small"] / n + 0.3 * min(m["regions_per_100cm2"] / DENSITY_REF, 1.0))
+           + 0.5 * m["regions_small"] / n + 0.3 * min(m["regions_per_100cm2"] / DENSITY_REF, 1.0)
+           + cost_weight * min(m["containers"] / CONTAINERS_REF, 1.0))
     work = 1.0 - min(max(pen, 0.0), 1.0)
     return {"fidelity": round(fid, 4), "workability": round(work, 4),
             "score": round(W_FIDELITY * fid + W_WORK * work, 4)}
@@ -107,7 +111,7 @@ def _worker(args) -> dict:
 
 
 def run_candidates(photo, base: Settings, variants: list[tuple[str, int]], jobs: int | None = None,
-                   thumb_h: int = 520, progress=None) -> list[dict]:
+                   thumb_h: int = 520, progress=None, cost_weight: float = COST_WEIGHT) -> list[dict]:
     """Запускає всі варіанти (у кількох процесах) і повертає рядки з показниками та оцінкою."""
     tasks = [(str(photo), dataclasses.replace(base, mode=m, n_colors=c), thumb_h) for m, c in variants]
     jobs = max(1, min(jobs or min(os.cpu_count() or 1, 4), len(tasks)))
@@ -125,7 +129,7 @@ def run_candidates(photo, base: Settings, variants: list[tuple[str, int]], jobs:
                     progress(i + 1, len(tasks))
     for r in rows:
         if "error" not in r:
-            r.update(score_of(r))
+            r.update(score_of(r, cost_weight))
     return rows
 
 
@@ -161,34 +165,36 @@ def contact_sheet(rows: list[dict], best: int | None) -> np.ndarray:
     return np.vstack([np.hstack(cells[i:i + cols]) for i in range(0, len(cells), cols)])
 
 
-def compare_report(rows: list[dict], best: int | None) -> dict:
+def compare_report(rows: list[dict], best: int | None, cost_weight: float = COST_WEIGHT) -> dict:
     slim = [{k: v for k, v in r.items() if k != "thumb_png"} for r in rows]
     ok = sorted((r["score"] for r in rows if "score" in r and r["critical"] == 0), reverse=True)
     margin = round(ok[0] - ok[1], 4) if len(ok) > 1 else None
     note = ("Кілька варіантів практично рівноцінні за оцінкою: розгляньте простіший або дешевший "
             "(менше кольорів і ділянок), перегляньте аркуш мініатюр." if margin is not None and margin < MARGIN_NOTE else "")
     return {"margin_to_second": margin, "note": note, "method": "score = 0.6*fidelity + 0.4*workability (гіпотетичні ваги, див. compare.py)",
-            "weights": {"fidelity": W_FIDELITY, "workability": W_WORK, "de_ref": DE_REF, "density_ref": DENSITY_REF},
+            "weights": {"fidelity": W_FIDELITY, "workability": W_WORK, "de_ref": DE_REF, "density_ref": DENSITY_REF,
+                       "cost_weight": cost_weight, "containers_ref": CONTAINERS_REF},
             "selected_index": best, "selected": None if best is None else {"mode": rows[best]["mode"],
                                                                          "colors": rows[best]["colors_requested"]},
             "candidates": slim}
 
 
-def select_best(photo, base: Settings, variants=None, jobs: int | None = None, progress=None):
+def select_best(photo, base: Settings, variants=None, jobs: int | None = None, progress=None,
+                cost_weight: float = COST_WEIGHT):
     """Повертає (settings найкращого, рядки, індекс, звіт, аркуш). Settings=None, якщо всі варіанти заблоковані."""
     variants = variants or default_variants(base)
-    rows = run_candidates(photo, base, variants, jobs, progress=progress)
+    rows = run_candidates(photo, base, variants, jobs, progress=progress, cost_weight=cost_weight)
     best = pick_best(rows)
     sheet = contact_sheet(rows, best)
     chosen = None if best is None else dataclasses.replace(base, mode=rows[best]["mode"],
                                                           n_colors=rows[best]["colors_requested"])
-    return chosen, rows, best, compare_report(rows, best), sheet
+    return chosen, rows, best, compare_report(rows, best, cost_weight), sheet
 
 
 def generate_best(photo, base: Settings, out_root, variants=None, jobs: int | None = None, force: bool = False,
-                  progress=None) -> Result:
+                  progress=None, cost_weight: float = COST_WEIGHT) -> Result:
     """Порівняти варіанти, перегенерувати найкращий (детерміновано) і зібрати пакет із звітом порівняння."""
-    chosen, rows, best, report, sheet = select_best(photo, base, variants, jobs, progress)
+    chosen, rows, best, report, sheet = select_best(photo, base, variants, jobs, progress, cost_weight)
     if chosen is None:                      # усі заблоковані: показуємо перший варіант, щоб оператор побачив причини
         ok = [r for r in rows if "error" not in r]
         if not ok:

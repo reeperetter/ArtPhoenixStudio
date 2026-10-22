@@ -8,7 +8,7 @@ from paint_by_numbers.settings import Settings
 
 def _row(mode, colors, **kw):
     r = dict(mode=mode, colors_requested=colors, regions=300, regions_no_number=0, regions_leader=10,
-             regions_narrow=5, regions_small=5, regions_per_100cm2=25.0, delta_e76_weighted=8.0, ssim=0.7, critical=0)
+             regions_narrow=5, regions_small=5, regions_per_100cm2=25.0, delta_e76_weighted=8.0, ssim=0.7, critical=0, containers=24)
     r.update(kw)
     r.update(score_of(r))
     return r
@@ -27,6 +27,14 @@ def test_score_monotonic():
         _row("balanced", 24, regions_no_number=30)
     assert good["score"] > worse_color["score"] and good["score"] > unplaced["score"]
     assert 0.0 <= good["score"] <= 1.0
+
+
+def test_cost_term_prefers_cheaper_variant():
+    cheap, dear = _row("balanced", 24, containers=20), _row("balanced", 24, containers=44)
+    assert cheap["score"] > dear["score"]
+    # вага 0 вимикає витрати; більша вага збільшує розрив
+    gap = lambda w: score_of(cheap, w)["score"] - score_of(dear, w)["score"]
+    assert gap(0.0) == 0.0 and gap(0.6) > gap(0.3) > 0
 
 
 def test_pick_best_rules():

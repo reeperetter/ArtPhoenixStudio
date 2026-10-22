@@ -38,6 +38,8 @@ def main(argv: list[str] | None = None) -> int:
                     help="перебрати варіанти (режим x кількість кольорів), обрати найкращий і зібрати для нього пакет")
     ap.add_argument("--compare-modes", default=None, help="режими для порівняння через кому (типово всі)")
     ap.add_argument("--compare-colors", default=None, help="кількості кольорів через кому (типово типове значення режиму +-8)")
+    ap.add_argument("--cost-weight", type=float, default=0.3,
+                    help="вага витрат на фарбу в оцінці варіантів (0 --- не враховувати; типово 0.3)")
     ap.add_argument("--jobs", type=int, default=None, help="кількість процесів для порівняння (типово до 4)")
     ap.add_argument("--preview-zones", action="store_true",
                     help="лише намалювати зони на фото (zones_preview.png) і вийти")
@@ -91,7 +93,7 @@ def main(argv: list[str] | None = None) -> int:
             ap.error(str(e))
         print(f"Порівняння {len(variants)} варіантів…")
         res = generate_best(a.photo, s, a.out, variants, a.jobs, force=a.force,
-                            progress=lambda i, n: print(f"  {i}/{n}", flush=True))
+                            progress=lambda i, n: print(f"  {i}/{n}", flush=True), cost_weight=a.cost_weight)
         sel = res.candidates["selected"]
         print(f"Обрано: режим {sel['mode']}, кольорів {sel['colors']}" if sel
               else "Усі варіанти мають критичні помилки; показано перший.")
