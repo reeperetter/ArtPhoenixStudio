@@ -141,7 +141,7 @@ class MainWindow(QMainWindow):
         self.tool_group = QButtonGroup(self)
         self.tool_group.setExclusive(True)
         for key, text, tip in (("pan", "✋", "Рука: тягніть зображення (колесо миші --- масштаб, подвійний клік --- вмістити; середня кнопка рухає в будь-якому режимі)"),
-                               ("select", "↖", "Вибір зони кліком"),
+                               ("select", "↖", "Вибір і редагування: клік --- вибрати; тягніть зону, щоб посунути, білі ручки --- змінити розмір (у багатокутника --- вершини); Delete --- видалити"),
                                ("rect", "▭", "Прямокутна зона"),
                                ("ellipse", "◯", "Еліптична зона"),
                                ("polygon", "⬠", "Багатокутник: клік --- точка; подвійний клік, Enter або права кнопка --- завершити")):
@@ -221,6 +221,8 @@ class MainWindow(QMainWindow):
         self.canvas = ZoneCanvas()
         self.canvas.zoneDrawn.connect(self._zone_drawn)
         self.canvas.zoneClicked.connect(self._canvas_clicked)
+        self.canvas.zoneEdited.connect(self._zone_geometry_changed)
+        self.canvas.deleteRequested.connect(lambda i: self.delete_zone())
         self.view_numbers = ImageView()
         self.view_color = ImageView()
         self.view_compare = ImageView()
@@ -345,6 +347,11 @@ class MainWindow(QMainWindow):
 
     def _canvas_clicked(self, i: int) -> None:
         self._refresh_zone_list(i)
+
+    def _zone_geometry_changed(self, i: int) -> None:
+        """Зону пересунули або змінили розмір на фото (канва вже оновила self.zones[i])."""
+        self._refresh_zone_list(i)
+        self._invalidate()
 
     def _zone_edited(self, *_):
         i = self.lst_zones.currentRow()

@@ -74,3 +74,66 @@ def zone_area(z: dict) -> float:
     poly = zone_outline(z, 1.0, 1.0)
     return abs(sum(poly[i][0] * poly[(i + 1) % len(poly)][1] - poly[(i + 1) % len(poly)][0] * poly[i][1]
                    for i in range(len(poly)))) / 2.0
+
+
+# ---------------------------------------------------------------- редагування наявної зони
+def bbox_px(z: dict, w: float, h: float) -> tuple[float, float, float, float]:
+    xs, ys = zip(*zone_outline(z, w, h))
+    return min(xs), min(ys), max(xs), max(ys)
+
+
+def resizable(z: dict) -> bool:
+    """Зміна розміру за рамкою можлива для прямокутника й нерозвернутого еліпса; багатокутник редагується за вершинами."""
+    return z["shape"] in ("rect", "polygon") or (z["shape"] == "ellipse" and not z.get("angle", 0.0))
+
+
+def handles(z: dict, w: float, h: float) -> list[tuple[object, float, float]]:
+    """Ручки редагування: (ідентифікатор, x, y) у пікселях. Порожньо, якщо зону не можна змінювати за ручками."""
+    if not resizable(z):
+        return []
+    if z["shape"] == "polygon":
+        return [(("v", i), x * w, y * h) for i, (x, y) in enumerate(z["points"])]
+    l, t, r, b = bbox_px(z, w, h)
+    cx, cy = (l + r) / 2, (t + b) / 2
+    return [("nw", l, t), ("n", cx, t), ("ne", r, t), ("e", r, cy), ("se", r, b), ("s", cx, b), ("sw", l, b), ("w", l, cy)]
+
+
+def move_zone(z: dict, dx: float, dy: float, w: float, h: float) -> dict:
+    """Зсув зони на (dx, dy) пікселів; зона не виходить за межі полотна."""
+    import copy
+    l, t, r, b = bbox_px(z, w, h)
+    dx = min(max(dx, -l), w - r)
+    dy = min(max(dy, -t), h - b)
+    out = copy.deepcopy(z)
+    nx, ny = dx / w, dy / h
+    if z["shape"] == "rect":
+        out["x0"] += nx; out["x1"] += nx; out["y0"] += ny; out["y1"] += ny
+    elif z["shape"] == "ellipse":
+        out["cx"] += nx; out["cy"] += ny
+    else:
+        out["points"] = [[x + nx, y + ny] for x, y in z["points"]]
+    return out
+
+
+def drag_handle(z: dict, hid, tx: float, ty: float, w: float, h: float) -> dict:
+    """Переносить ручку `hid` у точку (tx, ty) пікселів. Розмір не менший за MIN_SIZE_PX, межі полотна не перетинаються."""
+    import copy
+    out = copy.deepcopy(z)
+    if z["shape"] == "polygon":
+        i = hid[1]
+        out["points"][i] = [_clamp(tx, w) / w, _clamp(ty, h) / h]
+        return out
+    l, t, r, b = bbox_px(z, w, h)
+    if "w" in hid:
+        l = min(max(tx, 0.0), r - MIN_SIZE_PX)
+    if "e" in hid:
+        r = max(min(tx, w), l + MIN_SIZE_PX)
+    if "n" in hid:
+        t = min(max(ty, 0.0), b - MIN_SIZE_PX)
+    if "s" in hid:
+        b = max(min(ty, h), t + MIN_SIZE_PX)
+    if z["shape"] == "rect":
+        out.update(x0=l / w, x1=r / w, y0=t / h, y1=b / h)
+    else:
+        out.update(cx=(l + r) / 2 / w, cy=(t + b) / 2 / h, rx=(r - l) / 2 / w, ry=(b - t) / 2 / h)
+    return out

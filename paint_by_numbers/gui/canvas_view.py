@@ -1,10 +1,12 @@
 """Перегляд зображення з масштабуванням і малювання зон пріоритету мишею."""
 from __future__ import annotations
 
+import copy
+
 import numpy as np
 from PySide6.QtCore import QEvent, QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QBrush, QColor, QCursor, QImage, QPainterPath, QPen, QPixmap, QPolygonF
-from PySide6.QtWidgets import (QGraphicsPathItem, QGraphicsPixmapItem, QGraphicsScene, QGraphicsSimpleTextItem,
+from PySide6.QtWidgets import (QGraphicsPathItem, QGraphicsRectItem, QGraphicsPixmapItem, QGraphicsScene, QGraphicsSimpleTextItem,
                                QGraphicsView)
 
 from . import zone_utils as zu
@@ -108,6 +110,8 @@ class ZoneCanvas(ImageView):
     """Фото на полотні; зони малюються миші. Координати зон нормовані (0..1) відносно полотна."""
     zoneDrawn = Signal(dict)
     zoneClicked = Signal(int)
+    zoneEdited = Signal(int)           # геометрію зони змінено перетягуванням
+    deleteRequested = Signal(int)      # натиснуто Delete на вибраній зоні
 
     TOOLS = ("pan", "select", "rect", "ellipse", "polygon")
 
@@ -121,7 +125,10 @@ class ZoneCanvas(ImageView):
         self._start: QPointF | None = None
         self._rubber: QGraphicsPathItem | None = None
         self._poly: list[tuple[float, float]] = []
+        self._handle_items: list = []
+        self._edit = None                   # (індекс, ручка або None для зсуву, вихідна зона, точка натискання)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.viewport().setMouseTracking(True)
 
     # ---- інструменти
     def _pan_mode(self) -> bool:
@@ -130,6 +137,7 @@ class ZoneCanvas(ImageView):
     def set_tool(self, tool: str) -> None:
         self._cancel_drawing()
         self.tool = tool
+        self.set_zones(self.zones, self.selected)
         self.viewport().setCursor(QCursor(Qt.CursorShape.OpenHandCursor if tool == "pan"
                                           else Qt.CursorShape.ArrowCursor if tool == "select"
                                           else Qt.CursorShape.CrossCursor))
@@ -144,9 +152,9 @@ class ZoneCanvas(ImageView):
     # ---- відображення зон
     def set_zones(self, zones: list[dict], selected: int = -1) -> None:
         self.zones, self.selected = zones, selected
-        for it in self._items:
+        for it in self._items + self._handle_items:
             self._scene.removeItem(it)
-        self._items = []
+        self._items, self._handle_items = [], []
         if not self._has_image:
             return
         for i, z in enumerate(zones):
@@ -167,6 +175,16 @@ class ZoneCanvas(ImageView):
             txt.setFlag(txt.GraphicsItemFlag.ItemIgnoresTransformations)
             txt.setPos(min(p[0] for p in pts), min(p[1] for p in pts))
             self._items += [it]
+        if self.tool == "select" and 0 <= selected < len(zones):
+            for _hid, x, y in zu.handles(zones[selected], self.img_w, self.img_h):
+                hnd = QGraphicsRectItem(-5, -5, 10, 10)
+                hnd.setFlag(hnd.GraphicsItemFlag.ItemIgnoresTransformations)
+                hnd.setPos(x, y)
+                hnd.setBrush(QBrush(QColor("white")))
+                hnd.setPen(QPen(QColor("#ffd400"), 2))
+                hnd.setZValue(30)
+                self._scene.addItem(hnd)
+                self._handle_items.append(hnd)
 
     # ---- миша
     def mousePressEvent(self, e):
@@ -176,9 +194,17 @@ class ZoneCanvas(ImageView):
         p = self.mapToScene(e.position().toPoint())
         if self.tool == "select":
             if e.button() == Qt.MouseButton.LeftButton:
+                hid = self._handle_at(p)
+                if hid is not None:                                   # потягнули ручку вибраної зони
+                    self._edit = (self.selected, hid, copy.deepcopy(self.zones[self.selected]), p)
+                    return
                 hit = [i for i, z in enumerate(self.zones)
                        if zu.point_in_zone(z, p.x(), p.y(), self.img_w, self.img_h)]
-                self.zoneClicked.emit(min(hit, key=lambda i: zu.zone_area(self.zones[i])) if hit else -1)
+                idx = min(hit, key=lambda i: zu.zone_area(self.zones[i])) if hit else -1
+                if idx != self.selected:
+                    self.zoneClicked.emit(idx)
+                if idx >= 0:                                          # далі можна одразу тягнути зону
+                    self._edit = (idx, None, copy.deepcopy(self.zones[idx]), p)
             return
         if self.tool in ("rect", "ellipse") and e.button() == Qt.MouseButton.LeftButton:
             self._start = p
@@ -195,10 +221,41 @@ class ZoneCanvas(ImageView):
             elif e.button() == Qt.MouseButton.RightButton:
                 self._finish_polygon()
 
+    def _handle_at(self, p: QPointF):
+        if not 0 <= self.selected < len(self.zones):
+            return None
+        tol = 9.0 / max(self.transform().m11(), 1e-6)               # допуск у пікселях екрана
+        for hid, x, y in zu.handles(self.zones[self.selected], self.img_w, self.img_h):
+            if abs(p.x() - x) <= tol and abs(p.y() - y) <= tol:
+                return hid
+        return None
+
+    def _hover_cursor(self, p: QPointF) -> None:
+        if self._handle_at(p) is not None:
+            c = Qt.CursorShape.SizeFDiagCursor
+        elif any(zu.point_in_zone(z, p.x(), p.y(), self.img_w, self.img_h) for z in self.zones):
+            c = Qt.CursorShape.SizeAllCursor
+        else:
+            c = Qt.CursorShape.ArrowCursor
+        self.viewport().setCursor(QCursor(c))
+
     def mouseMoveEvent(self, e):
         if self.tool == "pan" or not self._has_image or self._panning:
             return super().mouseMoveEvent(e)
         p = self.mapToScene(e.position().toPoint())
+        if self.tool == "select":
+            if self._edit is not None:
+                idx, hid, z0, p0 = self._edit
+                if hid is None:
+                    z = zu.move_zone(z0, p.x() - p0.x(), p.y() - p0.y(), self.img_w, self.img_h)
+                else:
+                    hx, hy = next((x, y) for h_, x, y in zu.handles(z0, self.img_w, self.img_h) if h_ == hid)
+                    z = zu.drag_handle(z0, hid, hx + p.x() - p0.x(), hy + p.y() - p0.y(), self.img_w, self.img_h)
+                self.zones[idx] = z
+                self.set_zones(self.zones, idx)
+            else:
+                self._hover_cursor(p)
+            return
         if self._rubber is not None and self._start is not None and self.tool in ("rect", "ellipse"):
             r = QRectF(self._start, p).normalized()
             path = QPainterPath()
@@ -210,6 +267,12 @@ class ZoneCanvas(ImageView):
     def mouseReleaseEvent(self, e):
         if self.tool == "pan" or not self._has_image or self._panning:
             return super().mouseReleaseEvent(e)
+        if self._edit is not None and e.button() == Qt.MouseButton.LeftButton:
+            idx, _hid, z0, _p0 = self._edit
+            self._edit = None
+            if self.zones[idx] != z0:
+                self.zoneEdited.emit(idx)
+            return
         if self._start is not None and self.tool in ("rect", "ellipse"):
             p = self.mapToScene(e.position().toPoint())
             a, b = (self._start.x(), self._start.y()), (p.x(), p.y())
@@ -231,6 +294,8 @@ class ZoneCanvas(ImageView):
     def keyPressEvent(self, e):
         if self.tool == "polygon" and e.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
             self._finish_polygon()
+        elif e.key() == Qt.Key.Key_Delete and self.tool == "select" and 0 <= self.selected < len(self.zones):
+            self.deleteRequested.emit(self.selected)
         elif e.key() == Qt.Key.Key_Escape:
             self._cancel_drawing()
         else:

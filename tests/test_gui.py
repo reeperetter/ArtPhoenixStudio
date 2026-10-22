@@ -216,3 +216,71 @@ def test_hand_tool_pans_even_when_fitted_and_other_tools_draw(qtbot=None):
     _mouse(v, "move", 350, 250, buttons=Qt.MouseButton.LeftButton)
     _mouse(v, "release", 350, 250)
     assert len(got) == 1 and got[0]["shape"] == "rect"
+
+
+def test_zone_edit_utils():
+    w, h = 200.0, 100.0
+    r = zu.rect_zone((40, 20), (120, 60), w, h, "r", 2.0)
+    m = zu.move_zone(r, 1000, -1000, w, h)                      # зсув упирається в межі полотна
+    assert abs(m["x1"] - 1.0) < 1e-9 and abs(m["y0"]) < 1e-9 and abs((m["x1"] - m["x0"]) - (r["x1"] - r["x0"])) < 1e-9
+    d = zu.drag_handle(r, "se", 160, 90, w, h)
+    assert (d["x0"], d["y0"], d["x1"], d["y1"]) == (0.2, 0.2, 0.8, 0.9)
+    d = zu.drag_handle(r, "nw", 500, 500, w, h)                 # не можна перекинути за протилежний край
+    assert d["x1"] * w - d["x0"] * w >= zu.MIN_SIZE_PX - 1e-9 and d["y1"] * h - d["y0"] * h >= zu.MIN_SIZE_PX - 1e-9
+    e = zu.ellipse_zone((40, 20), (120, 60), w, h, "e", 2.0)
+    d = zu.drag_handle(e, "e", 180, 40, w, h)
+    assert abs((d["cx"] + d["rx"]) * w - 180) < 1e-9 and abs(d["cy"] - e["cy"]) < 1e-9
+    p = zu.polygon_zone([(10, 10), (100, 10), (50, 80)], w, h, "p", 2.0)
+    d = zu.drag_handle(p, ("v", 2), 60, 90, w, h)
+    assert d["points"][2] == [0.3, 0.9] and d["points"][0] == p["points"][0]
+    assert len(zu.handles(r, w, h)) == 8 and len(zu.handles(p, w, h)) == 3
+    rot = dict(e, angle=30.0)
+    assert zu.handles(rot, w, h) == [] and zu.move_zone(rot, 5, 5, w, h)["cx"] > e["cx"]
+
+
+def test_zone_editing_with_mouse():
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QApplication
+    from paint_by_numbers.gui.canvas_view import ZoneCanvas
+    app = QApplication.instance() or QApplication([])
+    v = ZoneCanvas()
+    v.resize(600, 500)
+    v.show()
+    v.set_image(np.full((400, 300, 3), 128, np.uint8))
+    app.processEvents()
+    z = zu.rect_zone((100, 100), (200, 200), 300, 400, "z", 2.0)
+    zones = [z]
+    v.set_zones(zones, -1)
+    v.set_tool("select")
+    edited, clicked = [], []
+    v.zoneEdited.connect(edited.append)
+    v.zoneClicked.connect(clicked.append)
+
+    def to_view(x, y):
+        p = v.mapFromScene(x, y)
+        return p.x(), p.y()
+    L = Qt.MouseButton.LeftButton
+    # клік усередині вибирає, подальше перетягування зсуває
+    x, y = to_view(150, 150)
+    _mouse(v, "press", x, y)
+    assert clicked == [0]
+    v.set_zones(zones, 0)
+    x2, y2 = to_view(150 + 30, 150 + 20)
+    _mouse(v, "move", x2, y2, buttons=L)
+    _mouse(v, "release", x2, y2)
+    assert edited == [0] and abs(zones[0]["x0"] * 300 - 130) < 1.5 and abs(zones[0]["y0"] * 400 - 120) < 1.5
+    # ручка «se» змінює розмір
+    hx, hy = to_view(zones[0]["x1"] * 300, zones[0]["y1"] * 400)
+    _mouse(v, "press", hx, hy)
+    tx, ty = to_view(zones[0]["x1"] * 300 + 40, zones[0]["y1"] * 400 + 30)
+    _mouse(v, "move", tx, ty, buttons=L)
+    _mouse(v, "release", tx, ty)
+    assert edited == [0, 0] and abs(zones[0]["x1"] * 300 - 270) < 1.5 and abs(zones[0]["y1"] * 400 - 250) < 1.5
+    assert abs(zones[0]["x0"] * 300 - 130) < 1.5            # протилежний край не зрушив
+    # Delete просить видалити вибрану зону
+    asked = []
+    v.deleteRequested.connect(asked.append)
+    from PySide6.QtTest import QTest
+    v.setFocus()
+    QTest.keyClick(v, Qt.Key.Key_Delete)
+    assert asked == [0]
