@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import numpy as np
-from PySide6.QtCore import QPointF, QRectF, Qt, Signal
+from PySide6.QtCore import QEvent, QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QBrush, QColor, QCursor, QImage, QPainterPath, QPen, QPixmap, QPolygonF
 from PySide6.QtWidgets import (QGraphicsPathItem, QGraphicsPixmapItem, QGraphicsScene, QGraphicsSimpleTextItem,
                                QGraphicsView)
@@ -26,8 +26,11 @@ class ImageView(QGraphicsView):
         self._pix = QGraphicsPixmapItem()
         self._pix.setTransformationMode(Qt.TransformationMode.SmoothTransformation)
         self._scene.addItem(self._pix)
-        self.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
+        self.setDragMode(QGraphicsView.DragMode.NoDrag)      # переміщення реалізовано вручну (_pan_*)
         self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
+        self.viewport().setCursor(QCursor(Qt.CursorShape.OpenHandCursor))
+        self._panning = False
+        self._pan_last = QPointF()
         self.setBackgroundBrush(QBrush(QColor("#2b2b2b")))
         self.setRenderHints(self.renderHints())
         self._has_image = False
@@ -41,21 +44,64 @@ class ImageView(QGraphicsView):
         first = not self._has_image
         self.img_h, self.img_w = bgr.shape[:2]
         self._pix.setPixmap(bgr_to_pixmap(bgr))
-        self._scene.setSceneRect(QRectF(0, 0, self.img_w, self.img_h))
+        # поля навколо зображення: його можна посунути й тоді, коли воно цілком вміщене у вікно
+        self._scene.setSceneRect(QRectF(-self.img_w * 0.5, -self.img_h * 0.5, self.img_w * 2.0, self.img_h * 2.0))
         self._has_image = True
         if first or not keep_view:
             self.fit()
 
     def fit(self) -> None:
         if self._has_image:
-            self.fitInView(self._scene.sceneRect(), Qt.AspectRatioMode.KeepAspectRatio)
+            self.fitInView(QRectF(0, 0, self.img_w, self.img_h), Qt.AspectRatioMode.KeepAspectRatio)
 
     def wheelEvent(self, e):
         f = 1.25 if e.angleDelta().y() > 0 else 0.8
         self.scale(f, f)
 
-    def resizeEvent(self, e):
-        super().resizeEvent(e)
+    # ---- переміщення: ліва кнопка в режимі «рука» (або завжди середня кнопка), подвійний клік --- вмістити
+    def _pan_mode(self) -> bool:
+        return True
+
+    def mousePressEvent(self, e):
+        if self._has_image and (e.button() == Qt.MouseButton.MiddleButton
+                                or (e.button() == Qt.MouseButton.LeftButton and self._pan_mode())):
+            self._panning = True
+            self._pan_last = e.position()
+            self.viewport().setCursor(QCursor(Qt.CursorShape.ClosedHandCursor))
+            e.accept()
+            return
+        super().mousePressEvent(e)
+
+    def mouseMoveEvent(self, e):
+        if self._panning:
+            d = e.position() - self._pan_last
+            self._pan_last = e.position()
+            self.horizontalScrollBar().setValue(self.horizontalScrollBar().value() - int(round(d.x())))
+            self.verticalScrollBar().setValue(self.verticalScrollBar().value() - int(round(d.y())))
+            e.accept()
+            return
+        super().mouseMoveEvent(e)
+
+    def mouseReleaseEvent(self, e):
+        if self._panning and e.button() in (Qt.MouseButton.LeftButton, Qt.MouseButton.MiddleButton):
+            self._panning = False
+            self.viewport().setCursor(QCursor(Qt.CursorShape.OpenHandCursor if self._pan_mode()
+                                              else Qt.CursorShape.CrossCursor))
+            e.accept()
+            return
+        super().mouseReleaseEvent(e)
+
+    def mouseDoubleClickEvent(self, e):
+        if self._pan_mode() and e.button() == Qt.MouseButton.LeftButton:
+            self.fit()
+            return
+        super().mouseDoubleClickEvent(e)
+
+    def keyPressEvent(self, e):
+        if e.key() in (Qt.Key.Key_0, Qt.Key.Key_Home):
+            self.fit()
+        else:
+            super().keyPressEvent(e)
 
 
 class ZoneCanvas(ImageView):
@@ -78,10 +124,12 @@ class ZoneCanvas(ImageView):
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
 
     # ---- інструменти
+    def _pan_mode(self) -> bool:
+        return self.tool == "pan"
+
     def set_tool(self, tool: str) -> None:
         self._cancel_drawing()
         self.tool = tool
-        self.setDragMode(QGraphicsView.DragMode.ScrollHandDrag if tool == "pan" else QGraphicsView.DragMode.NoDrag)
         self.viewport().setCursor(QCursor(Qt.CursorShape.OpenHandCursor if tool == "pan"
                                           else Qt.CursorShape.ArrowCursor if tool == "select"
                                           else Qt.CursorShape.CrossCursor))
@@ -122,7 +170,7 @@ class ZoneCanvas(ImageView):
 
     # ---- миша
     def mousePressEvent(self, e):
-        if self.tool == "pan" or not self._has_image:
+        if self.tool == "pan" or not self._has_image or e.button() == Qt.MouseButton.MiddleButton:
             return super().mousePressEvent(e)
         self.setFocus()
         p = self.mapToScene(e.position().toPoint())
@@ -148,7 +196,7 @@ class ZoneCanvas(ImageView):
                 self._finish_polygon()
 
     def mouseMoveEvent(self, e):
-        if self.tool == "pan" or not self._has_image:
+        if self.tool == "pan" or not self._has_image or self._panning:
             return super().mouseMoveEvent(e)
         p = self.mapToScene(e.position().toPoint())
         if self._rubber is not None and self._start is not None and self.tool in ("rect", "ellipse"):
@@ -160,7 +208,7 @@ class ZoneCanvas(ImageView):
             self._draw_poly(p)
 
     def mouseReleaseEvent(self, e):
-        if self.tool == "pan" or not self._has_image:
+        if self.tool == "pan" or not self._has_image or self._panning:
             return super().mouseReleaseEvent(e)
         if self._start is not None and self.tool in ("rect", "ellipse"):
             p = self.mapToScene(e.position().toPoint())
@@ -172,6 +220,8 @@ class ZoneCanvas(ImageView):
                 self.zoneDrawn.emit(z)
 
     def mouseDoubleClickEvent(self, e):
+        if self.tool == "pan":
+            return super().mouseDoubleClickEvent(e)
         if self.tool == "polygon" and self._poly:
             self._poly = self._poly[:-1] if len(self._poly) > 1 else self._poly   # дубль від першого кліку
             self._finish_polygon()

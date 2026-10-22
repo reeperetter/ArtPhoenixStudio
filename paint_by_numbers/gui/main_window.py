@@ -140,7 +140,7 @@ class MainWindow(QMainWindow):
         tools = QHBoxLayout()
         self.tool_group = QButtonGroup(self)
         self.tool_group.setExclusive(True)
-        for key, text, tip in (("pan", "✋", "Переміщення (колесо миші --- масштаб)"),
+        for key, text, tip in (("pan", "✋", "Рука: тягніть зображення (колесо миші --- масштаб, подвійний клік --- вмістити; середня кнопка рухає в будь-якому режимі)"),
                                ("select", "↖", "Вибір зони кліком"),
                                ("rect", "▭", "Прямокутна зона"),
                                ("ellipse", "◯", "Еліптична зона"),

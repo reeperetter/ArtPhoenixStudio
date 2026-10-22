@@ -162,3 +162,57 @@ def test_window_restores_settings(tmp_path, monkeypatch):
     w3 = MainWindow(Prefs(ini))
     assert w3.catalog == [] and "недоступний" in w3.lbl_cat.text()
     w3.close()
+
+
+def _mouse(view, kind, x, y, button=None, buttons=None):
+    from PySide6.QtCore import QEvent, QPointF, Qt
+    from PySide6.QtGui import QMouseEvent
+    from PySide6.QtWidgets import QApplication
+    B = Qt.MouseButton
+    typ = {"press": QEvent.Type.MouseButtonPress, "move": QEvent.Type.MouseMove,
+           "release": QEvent.Type.MouseButtonRelease, "dbl": QEvent.Type.MouseButtonDblClick}[kind]
+    btn = button if button is not None else B.LeftButton
+    held = buttons if buttons is not None else (B.NoButton if kind == "release" else btn)
+    pos = QPointF(x, y)
+    e = QMouseEvent(typ, pos, view.viewport().mapToGlobal(pos), btn if kind != "move" else B.NoButton, held,
+                    Qt.KeyboardModifier.NoModifier)
+    QApplication.sendEvent(view.viewport(), e)
+
+
+def test_hand_tool_pans_even_when_fitted_and_other_tools_draw(qtbot=None):
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QApplication
+    from paint_by_numbers.gui.canvas_view import ZoneCanvas
+    app = QApplication.instance() or QApplication([])
+    v = ZoneCanvas()
+    v.resize(600, 500)
+    v.show()
+    v.set_image(np.full((1200, 900, 3), 128, np.uint8))
+    app.processEvents()
+    hs, vs = v.horizontalScrollBar(), v.verticalScrollBar()
+    # 1) рука працює навіть коли зображення цілком вміщене у вікно
+    v.set_tool("pan")
+    h0, v0 = hs.value(), vs.value()
+    _mouse(v, "press", 300, 250)
+    _mouse(v, "move", 260, 210, buttons=Qt.MouseButton.LeftButton)
+    _mouse(v, "move", 220, 170, buttons=Qt.MouseButton.LeftButton)
+    _mouse(v, "release", 220, 170)
+    assert (hs.value() - h0, vs.value() - v0) == (80, 80)        # зображення йде за мишею
+    # 2) подвійний клік вміщує зображення
+    v.scale(3, 3)
+    _mouse(v, "dbl", 300, 250)
+    assert v.transform().m11() < 1.0
+    # 3) середня кнопка рухає зображення в будь-якому інструменті, а лівою малюється зона
+    v.set_tool("rect")
+    h0 = hs.value()
+    M = Qt.MouseButton.MiddleButton
+    _mouse(v, "press", 300, 250, button=M)
+    _mouse(v, "move", 270, 250, buttons=M)
+    _mouse(v, "release", 270, 250, button=M)
+    assert hs.value() - h0 == 30
+    got = []
+    v.zoneDrawn.connect(got.append)
+    _mouse(v, "press", 250, 150)
+    _mouse(v, "move", 350, 250, buttons=Qt.MouseButton.LeftButton)
+    _mouse(v, "release", 350, 250)
+    assert len(got) == 1 and got[0]["shape"] == "rect"
