@@ -132,7 +132,11 @@ class MainWindow(QMainWindow):
         self.btn_cat.clicked.connect(self.load_catalog_file)
         self.btn_cat_clear = QPushButton("Скинути")
         self.btn_cat_clear.clicked.connect(self.clear_catalog)
+        self.btn_cat_starter = QPushButton("Стартова (36)")
+        self.btn_cat_starter.setToolTip("Вбудована ЧЕРНЕТКА складської палітри для портретів (кольори екрана, не реальні фарби)")
+        self.btn_cat_starter.clicked.connect(self.load_starter_palette)
         row.addWidget(self.btn_cat)
+        row.addWidget(self.btn_cat_starter)
         row.addWidget(self.btn_cat_clear)
         self.catalog: list[dict] = []
         self.lbl_cat = QLabel("каталог не задано (коди P-001…)")
@@ -495,6 +499,16 @@ class MainWindow(QMainWindow):
         self.lbl_cat.setText(f"{Path(path).name}: {len(self.catalog)} фарб")
         self.prefs.set("catalog_path", path)
         self.prefs.set("last_catalog_dir", str(Path(path).parent))
+        self._invalidate()
+
+    def load_starter_palette(self) -> None:
+        try:
+            self.catalog = load_catalog("starter_36")
+        except (CatalogError, OSError) as e:
+            QMessageBox.warning(self, "Вбудована палітра", str(e))
+            return
+        self.lbl_cat.setText(f"стартова палітра (чернетка): {len(self.catalog)} фарб")
+        self.prefs.set("catalog_path", "starter_36")
         self._invalidate()
 
     def clear_catalog(self) -> None:

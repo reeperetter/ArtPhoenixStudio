@@ -59,6 +59,7 @@ def merge_small_regions(
     n_before: int | None = None,
     zone: np.ndarray | None = None,
     zone_floor_px: float = 0.0,
+    fixed_palette: np.ndarray | None = None,
 ) -> RegionMap:
     """Малі області приєднуються до найбільш відповідного сусіда (колір + спільна межа).
     Поріг площі нижчий там, де значущість висока, і ще нижчий у зонах пріоритету (zone = вага зони
@@ -162,9 +163,12 @@ def merge_small_regions(
     pal_area = np.array([f_area[f_col == c].sum() for c in used])
     order = np.argsort(-pal_area)                # нумерація: від найбільшої площі
     remap[used[order]] = np.arange(len(used))
-    palette = np.stack(
-        [f_sum[f_col == c].sum(axis=0) / f_area[f_col == c].sum() for c in used[order]]
-    ).astype(np.float32)
+    if fixed_palette is not None:                # кольори фарб заздалегідь відомі: середній колір пікселів не рахуємо
+        palette = np.asarray(fixed_palette, np.float32)[used[order]]
+    else:
+        palette = np.stack(
+            [f_sum[f_col == c].sum(axis=0) / f_area[f_col == c].sum() for c in used[order]]
+        ).astype(np.float32)
     return RegionMap(final_L, remap[f_col].astype(np.int32), f_area.astype(np.int64), palette,
                      R if n_before is None else n_before)
 

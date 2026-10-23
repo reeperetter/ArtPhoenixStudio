@@ -35,7 +35,9 @@ def main(argv: list[str] | None = None) -> int:
                     help="норму N підтверджено фізичними тестами (інакше розрахунок орієнтовний)")
     ap.add_argument("--zones", default=None, help="JSON-файл із зонами пріоритету (обличчя, очі тощо)")
     ap.add_argument("--zone-feather-mm", type=float, default=2.0, help="ширина м'якого краю зони, мм")
-    ap.add_argument("--catalog", default=None, help="JSON-каталог фарб: кольори буде замінено найближчими фарбами (CIEDE2000)")
+    ap.add_argument("--catalog", default=None, help="JSON-каталог фарб (склад) або імʼя вбудованої палітри, напр. starter_36; кольори набору вибираються зі складу")
+    ap.add_argument("--catalog-snap", action="store_true",
+                    help="старий режим: спершу вільний K-Means, потім підбір найближчих фарб (типово кольори вибираються одразу зі складу)")
     ap.add_argument("--catalog-max-de", type=float, default=10.0, help="поріг ΔE2000 для попередження CAT_FAR")
     ap.add_argument("--compare", action="store_true",
                     help="перебрати варіанти (режим x кількість кольорів), обрати найкращий і зібрати для нього пакет")
@@ -54,6 +56,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--skip-existing", action="store_true", help="пакетна обробка: пропускати вже готові замовлення")
     ap.add_argument("--purchase-list", metavar="ПАПКА", default=None,
                     help="зібрати загальний список закупівлі фарб з готових замовлень (order_*) у папці; потрібен каталог фарб")
+    ap.add_argument("--journal", metavar="ПАПКА", default=None,
+                    help="зібрати журнал замовлень і статистику використання кольорів складу з готових пакетів у папці")
     ap.add_argument("--bulk-ml", type=float, default=None, help="обʼєм великої тари фарби, мл (для переліку закупівлі)")
     ap.add_argument("--fill-loss", type=float, default=0.0, help="втрати при розливі, %% (для переліку закупівлі)")
     ap.add_argument("--preview-zones", action="store_true",
@@ -64,6 +68,8 @@ def main(argv: list[str] | None = None) -> int:
         return selftest()
     if a.open_project:
         return reopen(a.open_project, a.out, a.force)
+    if a.journal:
+        return journal_cli(a.journal)
     if a.purchase_list:
         return purchase_cli(a.purchase_list, a.bulk_ml, a.fill_loss)
     if not a.photo and not a.batch:
@@ -88,7 +94,7 @@ def main(argv: list[str] | None = None) -> int:
         except (CatalogError, OSError) as e:
             print(f"Помилка в каталозі фарб: {e}", file=sys.stderr)
             return 2
-    s = Settings(catalog=catalog, catalog_max_de2000=a.catalog_max_de, mode=a.mode, n_colors=a.colors, width_mm=a.width_mm, height_mm=a.height_mm,
+    s = Settings(catalog=catalog, catalog_select=not a.catalog_snap, catalog_max_de2000=a.catalog_max_de, mode=a.mode, n_colors=a.colors, width_mm=a.width_mm, height_mm=a.height_mm,
                  px_per_mm=a.px_per_mm, seed=a.seed, order_number=a.order, project_name=a.name,
                  coverage_mm2_per_container=a.coverage_mm2, safety_factor=a.safety_factor,
                  coverage_confirmed=a.coverage_confirmed, zones=zones, zone_feather_mm=a.zone_feather_mm)
@@ -161,11 +167,26 @@ def run_batch_cli(a, base: Settings) -> int:
     from collections import Counter
     c = Counter(r["status"] for r in rows)
     print("Підсумок: " + ", ".join(f"{marks.get(k, k)} {v}" for k, v in c.items()) + f". Звіт: {rep}")
+    journal_cli(a.out)
     if base.catalog and any(r["status"] == "ok" for r in rows):
         purchase_cli(a.out, a.bulk_ml, a.fill_loss)
     elif not base.catalog:
         print("Загальний список закупівлі не створено: потрібен каталог фарб (--catalog).")
     return exit_code(rows)
+
+
+def journal_cli(root: str) -> int:
+    from .journal import JournalError, build_journal, write_journal_files
+    try:
+        data = build_journal(root)
+        files = write_journal_files(data, root)
+    except (JournalError, OSError) as e:
+        print(f"Журнал замовлень: {e}", file=sys.stderr)
+        return 2
+    print(f"Журнал замовлень: {len(data['orders'])} шт.: {files['xlsx']}")
+    if data["unused"]:
+        print(f"  кольори складу, що ще не використовувались: {len(data['unused'])}")
+    return 0
 
 
 def purchase_cli(root: str, bulk_ml: float | None, fill_loss: float) -> int:

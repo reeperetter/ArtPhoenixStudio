@@ -99,6 +99,7 @@ def run_pipeline(photo: str | Path, settings: Settings, restored: dict | None = 
     n_dig = 2 if k > 9 else 1
     r_cap = 0.5 * math.sqrt((0.62 * n_dig) ** 2 + 1.0) * min_digit_px + line_px / 2.0
     floor_px = math.pi * r_cap ** 2
+    exact = bool(settings.catalog and settings.catalog_select)   # кольори набору беруться прямо зі складу фарб
     if restored is not None:
         # відкриття збереженого проєкту: розбиття на ділянки вже готове, повторного квантування й злиттів немає
         rm = RegionMap(restored["labels"], restored["region_color"], np.bincount(restored["labels"].ravel(),
@@ -107,18 +108,22 @@ def run_pipeline(photo: str | Path, settings: Settings, restored: dict | None = 
         lap("restore")
     else:
         lab = get_lab()
-        qlabels, _ = quantize(lab, k, settings.seed, weights=None if zw is None else 1.0 + zw)
+        qlabels, centers = quantize(lab, k, settings.seed, weights=None if zw is None else 1.0 + zw,
+                              stock=np.array([c["lab"] for c in settings.catalog], np.float32)
+                              if settings.catalog and settings.catalog_select else None)
         lap("quantize")
         L0, col0 = connected_regions(qlabels, k)
         lap("components")
-        rm = merge_small_regions(L0, col0, lab, sal, base_min_px, zone=zw, zone_floor_px=floor_px)
+        rm = merge_small_regions(L0, col0, lab, sal, base_min_px, zone=zw, zone_floor_px=floor_px,
+                                 fixed_palette=centers if exact else None)
         lap("merge")
         # вузькі виступи й перемички вужчі за мінімальну ширину (розділ 8.3 ТЗ), далі повторне об'єднання
         L1 = remove_protrusions(rm.labels, 0.5 * p.min_width_mm * ppm, sal,
                                 protect=None if unit is None else unit > 0.3)
         if L1 is not rm.labels:
             cl, cc = connected_regions(rm.color[L1], len(rm.palette_lab))
-            rm = merge_small_regions(cl, cc, lab, sal, base_min_px, zone=zw, zone_floor_px=floor_px)
+            rm = merge_small_regions(cl, cc, lab, sal, base_min_px, zone=zw, zone_floor_px=floor_px,
+                                     fixed_palette=rm.palette_lab if exact else None)
         lap("protrusions")
         # ділянки без місця для номера об'єднуються із сусідами; різко контрастні деталі лишаються
         # й потрапляють у звіт (розділ 9.3 ТЗ). Кілька проходів, бо після об'єднання радіуси змінюються.
@@ -129,7 +134,8 @@ def run_pipeline(photo: str | Path, settings: Settings, restored: dict | None = 
                 break
             before = len(rm.area_px)
             rm = merge_small_regions(rm.labels, rm.color, lab, sal, base_min_px, forced=bad,
-                                     keep_contrast=KEEP_CONTRAST, n_before=rm.n_before, zone=zw, zone_floor_px=floor_px)
+                                     keep_contrast=KEEP_CONTRAST, n_before=rm.n_before, zone=zw, zone_floor_px=floor_px,
+                                     fixed_palette=rm.palette_lab if exact else None)
             if len(rm.area_px) == before:
                 break
         lap("numbers")
@@ -147,7 +153,8 @@ def run_pipeline(photo: str | Path, settings: Settings, restored: dict | None = 
             break
         before = len(rm.area_px)
         rm = merge_small_regions(rm.labels, rm.color, get_lab(), sal, base_min_px, forced=bad, keep_contrast=None,
-                                 n_before=rm.n_before, zone=zw, zone_floor_px=floor_px)
+                                 n_before=rm.n_before, zone=zw, zone_floor_px=floor_px,
+                                 fixed_palette=rm.palette_lab if exact else None)
         merged_for_numbers += before - len(rm.area_px)
         if len(rm.area_px) == before:
             break

@@ -41,3 +41,39 @@ def test_match_unique_and_nearest():
 def test_bad_catalog(bad):
     with pytest.raises(CatalogError):
         parse_catalog(bad)
+
+
+def test_bundled_starter_palette():
+    from paint_by_numbers.palette.catalog import load_catalog
+    cat = load_catalog("starter_36")
+    assert len(cat) == 36 and len({c["code"] for c in cat}) == 36
+
+
+def test_select_from_stock_deterministic_and_close():
+    from paint_by_numbers.pipeline.color_quantization import select_from_stock
+    rng = np.random.default_rng(0)
+    stock = rng.uniform([0, -60, -60], [100, 60, 60], (40, 3)).astype(np.float32)
+    train = np.concatenate([stock[3] + rng.normal(0, 1, (200, 3)), stock[17] + rng.normal(0, 1, (200, 3)),
+                            stock[29] + rng.normal(0, 1, (200, 3))]).astype(np.float32)
+    a = select_from_stock(train, None, stock, 3)
+    b = select_from_stock(train, None, stock, 3)
+    assert list(a) == list(b) == [3, 17, 29]
+    assert len(select_from_stock(train, None, stock, 99)) == 40          # k більше за склад
+
+
+def test_pipeline_uses_exact_stock_colors(tmp_path):
+    import cv2
+    from paint_by_numbers.generate import generate
+    from paint_by_numbers.palette.catalog import load_catalog
+    from paint_by_numbers.settings import Settings
+    rng = np.random.default_rng(1)
+    img = np.full((200, 280, 3), (190, 170, 150), np.uint8)
+    cv2.circle(img, (140, 100), 60, (60, 90, 210), -1)
+    img = np.clip(img.astype(int) + rng.integers(-8, 8, img.shape), 0, 255).astype(np.uint8)
+    cv2.imwrite(str(tmp_path / "t.png"), img)
+    cat = load_catalog("starter_36")
+    res = generate(str(tmp_path / "t.png"), Settings(width_mm=100.0, n_colors=8, catalog=cat, order_number="x"),
+                   tmp_path / "o", force=True)
+    stock = np.array([c["lab"] for c in cat])
+    assert all(np.abs(stock - c).sum(1).min() < 0.01 for c in res.rm.palette_lab)
+    assert res.report["catalog"]["max_delta_e2000"] < 0.05 and len(res.rm.palette_lab) <= 8

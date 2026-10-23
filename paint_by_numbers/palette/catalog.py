@@ -107,7 +107,16 @@ def parse_catalog(data) -> tuple[str, list[dict]]:
     return name, out
 
 
+def bundled_palette_path(name: str) -> Path | None:
+    """Вбудована палітра за іменем (наприклад «starter_36»), якщо файлу з таким шляхом немає."""
+    from ..export.pdf import resource_dir
+    f = resource_dir() / "assets" / "palettes" / (name if name.endswith(".json") else name + ".json")
+    return f if f.is_file() else None
+
+
 def load_catalog(path: str | Path) -> list[dict]:
+    if not Path(path).exists():
+        path = bundled_palette_path(str(path)) or path
     try:
         data = json.loads(Path(path).read_text(encoding="utf-8"))
     except json.JSONDecodeError as e:

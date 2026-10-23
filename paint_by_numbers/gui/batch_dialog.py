@@ -220,6 +220,12 @@ class BatchDialog(QDialog):
         bad = sum(r["status"] in ("error", "blocked") for r in rows)
         self.lbl_status.setText(f"Готово: {ok} з {len(rows)}" + (f", потребують уваги: {bad}" if bad else "")
                                 + f". Звіт: {rep}")
+        try:
+            from ..journal import build_journal, write_journal_files
+            write_journal_files(build_journal(self.lbl_out.text()), self.lbl_out.text())
+            self.lbl_status.setText(self.lbl_status.text() + ". Журнал: orders_journal.xlsx")
+        except Exception as e:           # журнал допоміжний: збій не має ламати підсумок пакетної обробки
+            self.lbl_status.setText(self.lbl_status.text() + f". Журнал не створено: {e}")
         if self.base.catalog and ok:
             from ..purchase import PurchaseError, build_purchase_list, write_purchase_files
             try:
