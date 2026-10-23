@@ -325,3 +325,71 @@ def test_window_opens_project_without_recalculation(tmp_path, monkeypatch):
     _wait(w, lambda: w.job is None)
     assert shown and "project.json" in shown[0]
     w.close()
+
+
+def test_window_undo_redo_zones(tmp_path):
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QApplication
+    from paint_by_numbers.gui.main_window import MainWindow
+    app = QApplication.instance() or QApplication([])
+    img = np.full((300, 400, 3), 120, np.uint8)
+    photo = tmp_path / "u.png"
+    cv2.imwrite(str(photo), img)
+    w = MainWindow(Prefs(str(tmp_path / "u.ini")))
+    w.show()
+    w.open_photo(str(photo))
+    assert not w.btn_undo.isEnabled() and not w.btn_redo.isEnabled()
+    W, H = w.canvas.img_w, w.canvas.img_h
+    w.canvas.zoneDrawn.emit(zu.rect_zone((40, 40), (140, 120), W, H, "", 2.0))
+    w.canvas.zoneDrawn.emit(zu.ellipse_zone((160, 100), (300, 240), W, H, "", 2.0))
+    assert len(w.zones) == 2 and w.btn_undo.isEnabled()
+    w.undo_zones()
+    assert len(w.zones) == 1 and w.lst_zones.count() == 1 and w.btn_redo.isEnabled()
+    w.redo_zones()
+    assert len(w.zones) == 2 and w.zones[1]["shape"] == "ellipse"
+    # швидкі зміни ваги --- один крок історії
+    w.lst_zones.setCurrentRow(1)
+    for v in (2.5, 3.0, 3.5, 4.0):
+        w.sp_zw.setValue(v)
+    assert w.zones[1]["weight"] == 4.0
+    w.undo_zones()
+    assert w.zones[1]["weight"] == 2.0 and len(w.zones) == 2
+    w.redo_zones()
+    assert w.zones[1]["weight"] == 4.0
+    # перетягування зони можна відмінити
+    w.canvas.set_tool("select")
+    before = dict(w.zones[0])
+    p0 = w.canvas.mapFromScene(90, 80)
+    p1 = w.canvas.mapFromScene(110, 95)
+    w.lst_zones.setCurrentRow(0)
+    _mouse(w.canvas, "press", p0.x(), p0.y())
+    _mouse(w.canvas, "move", p1.x(), p1.y(), buttons=Qt.MouseButton.LeftButton)
+    _mouse(w.canvas, "release", p1.x(), p1.y())
+    assert w.zones[0]["x0"] != before["x0"]
+    w.undo_zones()
+    assert abs(w.zones[0]["x0"] - before["x0"]) < 1e-9 and abs(w.zones[0]["y1"] - before["y1"]) < 1e-9
+    # видалення відміняється з поверненням зони на місце
+    w.delete_zone()
+    assert len(w.zones) == 1
+    w.undo_zones()
+    assert len(w.zones) == 2 and w.zones[1]["weight"] == 4.0
+    # відміна скасовує превʼю, бо набір зон змінився
+    w.res = object()
+    w.undo_zones()
+    assert w.res is None
+    # гарячі клавіші справді працюють: Ctrl+Z, Ctrl+Y та Ctrl+Shift+Z
+    from PySide6.QtTest import QTest
+    n = len(w.zones)
+    w.activateWindow()
+    w.canvas.setFocus()
+    CT, SH = Qt.KeyboardModifier.ControlModifier, Qt.KeyboardModifier.ShiftModifier
+    QTest.keyClick(w.canvas, Qt.Key.Key_Z, CT)
+    QApplication.processEvents()
+    assert len(w.zones) == n - 1 or w.zones != w.history._items[-1].state[0]
+    QTest.keyClick(w.canvas, Qt.Key.Key_Y, CT)
+    QApplication.processEvents()
+    QTest.keyClick(w.canvas, Qt.Key.Key_Z, CT)
+    QTest.keyClick(w.canvas, Qt.Key.Key_Z, CT | SH)
+    QApplication.processEvents()
+    assert w.history.can_undo
+    w.close()

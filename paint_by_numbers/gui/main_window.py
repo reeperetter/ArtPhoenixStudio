@@ -23,6 +23,7 @@ from ..project import ProjectError, open_project
 from ..pipeline.priority_zones import MAX_WEIGHT, ZoneError, load_zones_file, parse_zones
 from ..settings import PRESETS, Settings
 from .canvas_view import ImageView, ZoneCanvas
+from .history import UndoStack
 from .prefs import Prefs
 
 MODE_NAMES = {"simple": "Простий", "balanced": "Збалансований", "detailed": "Деталізований"}
@@ -58,12 +59,15 @@ class MainWindow(QMainWindow):
         self.res = None
         self.job: Job | None = None
         self._pending_apply: int | None = None
+        self.history = UndoStack(([], -1))
+        self._restoring = False
         self._reload_timer = QTimer(self, singleShot=True, interval=400)
         self._reload_timer.timeout.connect(self._reload_canvas)
         self._build_ui()
         self._build_menu()
         self._load_prefs()
         self._update_buttons()
+        self._update_undo_actions()
 
     # ------------------------------------------------------------------ побудова
     def _build_ui(self) -> None:
@@ -175,6 +179,14 @@ class MainWindow(QMainWindow):
         zf.addRow("Назва", self.ed_zname)
         zf.addRow("Вага", self.sp_zw)
         v.addLayout(zf)
+        zu_row = QHBoxLayout()
+        self.btn_undo = QPushButton("↶ Відмінити")
+        self.btn_undo.clicked.connect(self.undo_zones)
+        self.btn_redo = QPushButton("↷ Повторити")
+        self.btn_redo.clicked.connect(self.redo_zones)
+        zu_row.addWidget(self.btn_undo)
+        zu_row.addWidget(self.btn_redo)
+        v.addLayout(zu_row)
         zb = QHBoxLayout()
         self.btn_zdel = QPushButton("Видалити")
         self.btn_zdel.clicked.connect(self.delete_zone)
@@ -287,6 +299,56 @@ class MainWindow(QMainWindow):
             if key:
                 a.setShortcut(key)
             m.addAction(a)
+        em = self.menuBar().addMenu("Правка")
+        self.act_undo = QAction("Відмінити", self)
+        self.act_undo.setShortcut(QKeySequence("Ctrl+Z"))
+        self.act_undo.triggered.connect(lambda _=False: self.undo_zones())
+        self.act_redo = QAction("Повторити", self)
+        self.act_redo.setShortcuts([QKeySequence("Ctrl+Y"), QKeySequence("Ctrl+Shift+Z")])
+        self.act_redo.triggered.connect(lambda _=False: self.redo_zones())
+        em.addAction(self.act_undo)
+        em.addAction(self.act_redo)
+
+    # ------------------------------------------------------------------ відмінити / повторити (зони)
+    def _record(self, label: str, key=None) -> None:
+        if not self._restoring:
+            self.history.push((copy.deepcopy(self.zones), self.lst_zones.currentRow()), label, key)
+        self._update_undo_actions()
+
+    def _update_undo_actions(self) -> None:
+        h = self.history
+        for w, can, lab, pre in ((self.act_undo, h.can_undo, h.undo_label, "Відмінити"),
+                                 (self.btn_undo, h.can_undo, h.undo_label, "↶ Відмінити"),
+                                 (self.act_redo, h.can_redo, h.redo_label, "Повторити"),
+                                 (self.btn_redo, h.can_redo, h.redo_label, "↷ Повторити")):
+            w.setEnabled(can)
+            w.setToolTip(f"{pre}: {lab}" if can else "")
+            if w in (self.act_undo, self.act_redo):
+                w.setText(f"{pre}: {lab}" if can else pre)
+
+    def _restore(self, state, verb: str, label: str) -> None:
+        zones, sel = state
+        self._restoring = True
+        try:
+            self.zones = copy.deepcopy(zones)
+            self._refresh_zone_list(sel if 0 <= sel < len(self.zones) else -1)
+            self._invalidate()
+        finally:
+            self._restoring = False
+        self._update_undo_actions()
+        self.lbl_status.setText(f"{verb}: {label}.")
+
+    def undo_zones(self) -> None:
+        label = self.history.undo_label
+        state = self.history.undo()
+        if state is not None:
+            self._restore(state, "Відмінено", label)
+
+    def redo_zones(self) -> None:
+        label = self.history.redo_label
+        state = self.history.redo()
+        if state is not None:
+            self._restore(state, "Повторено", label)
 
     # ------------------------------------------------------------------ фото та зони
     def open_photo(self, path: str | None = None) -> None:
@@ -350,6 +412,7 @@ class MainWindow(QMainWindow):
         self.zones.append(z)
         self._refresh_zone_list(len(self.zones) - 1)
         self._invalidate()
+        self._record("додано зону")
 
     def _zone_selected(self, i: int) -> None:
         self.canvas.set_zones(self.zones, i)
@@ -362,6 +425,7 @@ class MainWindow(QMainWindow):
         """Зону пересунули або змінили розмір на фото (канва вже оновила self.zones[i])."""
         self._refresh_zone_list(i)
         self._invalidate()
+        self._record("зміна положення або розміру зони")
 
     def _zone_edited(self, *_):
         i = self.lst_zones.currentRow()
@@ -371,6 +435,7 @@ class MainWindow(QMainWindow):
         self.zones[i]["weight"] = float(self.sp_zw.value())
         self._refresh_zone_list(i)
         self._invalidate()
+        self._record("зміна назви або ваги зони", key=("edit", i))
 
     def delete_zone(self) -> None:
         i = self.lst_zones.currentRow()
@@ -378,6 +443,7 @@ class MainWindow(QMainWindow):
             del self.zones[i]
             self._refresh_zone_list(min(i, len(self.zones) - 1))
             self._invalidate()
+            self._record("видалено зону")
 
     def load_zones(self) -> None:
         path, _ = QFileDialog.getOpenFileName(self, "Зони пріоритету", self.prefs.get("last_zones_dir"), "JSON (*.json)")
@@ -399,6 +465,7 @@ class MainWindow(QMainWindow):
                                     "показуються відносно обрізаного полотна.")
         self._refresh_zone_list(0 if self.zones else -1)
         self._invalidate()
+        self._record("завантажено зони з файлу")
 
     def save_zones(self) -> None:
         if not self.zones:
@@ -730,6 +797,8 @@ class MainWindow(QMainWindow):
         self._reload_timer.stop()
         self._reload_canvas(fit=True)
         self._refresh_zone_list(0 if self.zones else -1)
+        self.history.reset((copy.deepcopy(self.zones), self.lst_zones.currentRow()))   # історія нового проєкту
+        self._update_undo_actions()
         self.res = res                      # _reload_canvas/_refresh_zone_list не скасовують результат: він встановлюється останнім
         self._generated(res)
         self.lbl_status.setText("Проєкт відкрито без перерахунку. " + self.lbl_status.text())
