@@ -23,6 +23,7 @@ from ..project import ProjectError, open_project
 from ..pipeline.priority_zones import MAX_WEIGHT, ZoneError, load_zones_file, parse_zones
 from ..settings import PRESETS, Settings
 from .canvas_view import ImageView, ZoneCanvas
+from .batch_dialog import BatchDialog
 from .history import UndoStack
 from .prefs import Prefs
 
@@ -210,6 +211,10 @@ class MainWindow(QMainWindow):
                                 "обирає найкращий за формулою з compare.py і будує його превʼю")
         self.btn_cmp.clicked.connect(self.compare_variants)
         v.addWidget(self.btn_cmp)
+        self.btn_batch = QPushButton("Пакетна обробка (багато фото)…")
+        self.btn_batch.setToolTip("Обробити папку з фото або CSV-маніфест: кожне фото --- окреме замовлення")
+        self.btn_batch.clicked.connect(self.open_batch)
+        v.addWidget(self.btn_batch)
         f = QFormLayout()
         self.ed_order = QLineEdit("000001")
         self.ed_name = QLineEdit()
@@ -289,6 +294,7 @@ class MainWindow(QMainWindow):
         m = self.menuBar().addMenu("Файл")
         for text, fn, key in (("Відкрити фото…", self.open_photo, QKeySequence.StandardKey.Open),
                               ("Відкрити проєкт (папку замовлення)…", self.open_project_dialog, QKeySequence("Ctrl+Shift+O")),
+                              ("Пакетна обробка…", self.open_batch, QKeySequence("Ctrl+B")),
                               ("Зони із файлу…", self.load_zones, None), ("Зони у файл…", self.save_zones, None),
                               ("Створити превʼю", self.generate, QKeySequence("Ctrl+R")),
                               ("Зберегти пакет…", self.save_package, QKeySequence.StandardKey.Save),
@@ -803,3 +809,15 @@ class MainWindow(QMainWindow):
         self._generated(res)
         self.lbl_status.setText("Проєкт відкрито без перерахунку. " + self.lbl_status.text())
         self.prefs.set("last_save_dir", str(Path(res.source_photo).parent.parent.parent))
+
+    # ------------------------------------------------------------------ пакетна обробка
+    def open_batch(self) -> None:
+        if self.job:
+            return
+        try:
+            base = self.make_settings()
+        except ZoneError as e:
+            QMessageBox.warning(self, "Помилка в зонах", str(e))
+            return
+        self.batch_dialog = BatchDialog(base, self.prefs, self)
+        self.batch_dialog.exec()

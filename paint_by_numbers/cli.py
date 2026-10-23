@@ -44,6 +44,14 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--cost-weight", type=float, default=0.3,
                     help="вага витрат на фарбу в оцінці варіантів (0 --- не враховувати; типово 0.3)")
     ap.add_argument("--jobs", type=int, default=None, help="кількість процесів для порівняння (типово до 4)")
+    ap.add_argument("--batch", metavar="ПАПКА_АБО_CSV", default=None,
+                    help="пакетна обробка: папка з фото або CSV-маніфест (file;order;name;width_mm;height_mm;mode;colors;zones); "
+                         "з --compare для кожного фото обирається найкращий варіант")
+    ap.add_argument("--order-numbering", choices=["name", "sequential"], default="name",
+                    help="номери замовлень у пакетній обробці: за імʼям файлу або послідовні (типово за імʼям)")
+    ap.add_argument("--order-start", type=int, default=1, help="перший номер при послідовній нумерації")
+    ap.add_argument("--order-prefix", default="", help="префікс номера замовлення в пакетній обробці")
+    ap.add_argument("--skip-existing", action="store_true", help="пакетна обробка: пропускати вже готові замовлення")
     ap.add_argument("--preview-zones", action="store_true",
                     help="лише намалювати зони на фото (zones_preview.png) і вийти")
     ap.add_argument("--force", action="store_true", help="сформувати пакет попри критичні помилки")
@@ -52,8 +60,8 @@ def main(argv: list[str] | None = None) -> int:
         return selftest()
     if a.open_project:
         return reopen(a.open_project, a.out, a.force)
-    if not a.photo:
-        ap.error("потрібен шлях до фотографії")
+    if not a.photo and not a.batch:
+        ap.error("потрібен шлях до фотографії (або --batch)")
     a.out = a.out or "out"
     if a.colors is not None and not 4 <= a.colors <= 64:
         ap.error("--colors має бути в межах 4..64")
@@ -78,6 +86,8 @@ def main(argv: list[str] | None = None) -> int:
                  px_per_mm=a.px_per_mm, seed=a.seed, order_number=a.order, project_name=a.name,
                  coverage_mm2_per_container=a.coverage_mm2, safety_factor=a.safety_factor,
                  coverage_confirmed=a.coverage_confirmed, zones=zones, zone_feather_mm=a.zone_feather_mm)
+    if a.batch:
+        return run_batch_cli(a, s)
     if a.preview_zones:
         import os
         import cv2
@@ -120,6 +130,32 @@ def main(argv: list[str] | None = None) -> int:
         print("ВИРОБНИЧИЙ ПАКЕТ ЗАБЛОКОВАНО критичними помилками (використайте --force лише після перевірки).")
         return 2
     return 0
+
+
+def run_batch_cli(a, base: Settings) -> int:
+    from .batch import build_items, exit_code, run_batch, write_report
+    try:
+        items = build_items(a.batch, base, a.order_numbering, a.order_start, a.order_prefix)
+    except ValueError as e:
+        print(f"Помилка пакетної обробки: {e}", file=sys.stderr)
+        return 2
+    if not items:
+        print("У вказаному місці немає фото.", file=sys.stderr)
+        return 2
+    bad = sum(1 for i in items if i.settings is None)
+    print(f"Фото: {len(items)}" + (f" (з помилками: {bad})" if bad else "") + (", з вибором найкращого варіанта" if a.compare else ""))
+    marks = {"ok": "OK", "blocked": "ЗАБЛОКОВАНО", "error": "ПОМИЛКА", "skipped": "пропущено", "cancelled": "перервано"}
+
+    def progress(done, total, row):
+        extra = f" --- {row['message']}" if row["message"] else ""
+        print(f"[{done}/{total}] {row['file']} -> order_{row['order']}: {marks.get(row['status'], row['status'])}{extra}", flush=True)
+
+    rows = run_batch(items, a.out, a.jobs, a.compare, a.skip_existing, a.force, progress)
+    rep = write_report(rows, a.out, base)
+    from collections import Counter
+    c = Counter(r["status"] for r in rows)
+    print("Підсумок: " + ", ".join(f"{marks.get(k, k)} {v}" for k, v in c.items()) + f". Звіт: {rep}")
+    return exit_code(rows)
 
 
 def reopen(folder: str, out: str | None, force: bool) -> int:

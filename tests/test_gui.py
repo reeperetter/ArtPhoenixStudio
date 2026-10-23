@@ -393,3 +393,35 @@ def test_window_undo_redo_zones(tmp_path):
     QApplication.processEvents()
     assert w.history.can_undo
     w.close()
+
+
+def test_batch_dialog(tmp_path, monkeypatch):
+    import json as _json
+    from PySide6.QtWidgets import QApplication
+    from paint_by_numbers.gui.batch_dialog import BatchDialog
+    from paint_by_numbers.settings import Settings
+    app = QApplication.instance() or QApplication([])
+    d = tmp_path / "in"
+    d.mkdir()
+    for i in range(3):
+        rng = np.random.default_rng(i)
+        img = np.full((200, 280, 3), (200, 160, 120), np.uint8)
+        cv2.circle(img, (140, 100), 50 + i * 5, (40, 60, 200), -1)
+        cv2.imwrite(str(d / f"p{i}.png"), np.clip(img.astype(int) + rng.integers(-8, 8, img.shape), 0, 255).astype(np.uint8))
+    (d / "p1.zones.json").write_text("{плохий json")
+    prefs = Prefs(str(tmp_path / "b.ini"))
+    dlg = BatchDialog(Settings(width_mm=100.0, n_colors=6, zones=[{"shape": "rect"}]), prefs)
+    assert dlg.base.zones == [] and not dlg.btn_start.isEnabled()
+    dlg.set_source(str(d))
+    assert dlg.tbl.rowCount() == 3 and dlg.tbl.item(1, 2).text() == "помилка" and not dlg.btn_start.isEnabled()
+    dlg.set_out(str(tmp_path / "result"))
+    assert dlg.btn_start.isEnabled()
+    dlg.show()
+    dlg.start()
+    assert dlg.job is not None and dlg.btn_cancel.isEnabled() and not dlg.btn_close.isEnabled()
+    _wait(dlg, lambda: dlg.job is None and dlg.rows, timeout=180)
+    assert [r["status"] for r in dlg.rows] == ["ok", "error", "ok"] and dlg.exit_code() == 2
+    assert dlg.tbl.item(0, 2).text() == "готово" and dlg.tbl.item(0, 3).text()
+    assert (tmp_path / "result" / "batch_report.csv").exists() and (tmp_path / "result" / "order_p2").is_dir()
+    assert dlg.btn_close.isEnabled() and "Готово: 2 з 3" in dlg.lbl_status.text()
+    dlg.close()
