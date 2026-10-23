@@ -2,7 +2,7 @@
 а не вимоги: їх потрібно уточнити фізичними тестами."""
 from __future__ import annotations
 
-from dataclasses import dataclass, field, asdict
+from dataclasses import fields, dataclass, field, asdict
 
 ALGORITHM_VERSION = "0.5.0"
 PROJECT_FORMAT_VERSION = 1
@@ -58,3 +58,9 @@ class Settings:
 
     def to_dict(self) -> dict:
         return asdict(self)
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "Settings":
+        """Відновлює налаштування з project.json; невідомі ключі ігноруються (сумісність між версіями)."""
+        names = {f.name for f in fields(cls)}
+        return cls(**{k: v for k, v in d.items() if k in names})

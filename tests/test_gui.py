@@ -284,3 +284,44 @@ def test_zone_editing_with_mouse():
     v.setFocus()
     QTest.keyClick(v, Qt.Key.Key_Delete)
     assert asked == [0]
+
+
+def test_window_opens_project_without_recalculation(tmp_path, monkeypatch):
+    from PySide6.QtWidgets import QApplication, QMessageBox
+    from paint_by_numbers.generate import generate
+    from paint_by_numbers.gui.main_window import MainWindow
+    from paint_by_numbers.settings import Settings
+    app = QApplication.instance() or QApplication([])
+    monkeypatch.setattr(QMessageBox, "information", lambda *a, **k: None)
+    rng = np.random.default_rng(6)
+    img = np.full((240, 320, 3), (200, 160, 120), np.uint8)
+    cv2.circle(img, (160, 120), 70, (40, 60, 200), -1)
+    img = np.clip(img.astype(int) + rng.integers(-10, 10, img.shape), 0, 255).astype(np.uint8)
+    photo = tmp_path / "orig.png"
+    cv2.imwrite(str(photo), img)
+    z = [{"name": "центр", "shape": "rect", "x0": 0.3, "y0": 0.3, "x1": 0.7, "y1": 0.7, "weight": 3.0}]
+    a = generate(str(photo), Settings(mode="detailed", n_colors=10, width_mm=100.0, order_number="777",
+                                      project_name="Тест", coverage_mm2_per_container=8000.0, safety_factor=1.4,
+                                      zones=z), tmp_path / "out")
+    w = MainWindow(Prefs(str(tmp_path / "pp.ini")))
+    w.show()
+    w.open_project_dialog(str(tmp_path / "out" / "order_777"))
+    _wait(w, lambda: w.res is not None and w.job is None)
+    assert w.cmb_mode.currentData() == "detailed" and w.sp_colors.value() == 10 and not w.cb_auto_colors.isChecked()
+    assert w.sp_w.value() == 100 and w.cb_auto_h.isChecked() and w.sp_cov.value() == 8000 and w.sp_k.value() == 1.4
+    assert w.ed_order.text() == "777" and w.ed_name.text() == "Тест"
+    assert len(w.zones) == 1 and w.zones[0]["name"] == "центр" and w.lst_zones.count() == 1
+    assert w.res.report["regions_final"] == a.report["regions_final"] and w.tbl.rowCount() == len(a.spec["paints"])
+    assert w.btn_save.isEnabled() and w.original_name == "orig.png" and "без перерахунку" in w.lbl_status.text()
+    # результат лишається чинним, поки налаштування не змінено
+    QApplication.processEvents()
+    assert w.res is not None
+    w.sp_k.setValue(1.6)
+    assert w.res is None
+    # пошкоджена папка: зрозуміле повідомлення й вікно залишається робочим
+    shown = []
+    monkeypatch.setattr(QMessageBox, "critical", lambda *a, **k: shown.append(a[2]))
+    w.open_project_dialog(str(tmp_path))
+    _wait(w, lambda: w.job is None)
+    assert shown and "project.json" in shown[0]
+    w.close()

@@ -45,7 +45,8 @@ def _write_csv(path: Path, spec: dict) -> None:
         w.writerow(["TOTAL", "", "", "", "", t["canvas_area_mm2"], 100, "", t["containers"], "", t["total_ml"], ""])
 
 
-def build_package(res, out_root: str | Path, photo: str | Path, force: bool = False) -> dict:
+def build_package(res, out_root: str | Path, photo: str | Path, force: bool = False,
+                  original_name: str | None = None) -> dict:
     s = res.settings
     out_root = Path(out_root)
     out_root.mkdir(parents=True, exist_ok=True)
@@ -117,7 +118,10 @@ def build_package(res, out_root: str | Path, photo: str | Path, force: bool = Fa
 
         # проєкт: усе потрібне для повторного відкриття й відтворення контурів (розділ 16.2 ТЗ)
         np.savez_compressed(tmp / "project/regions.npz", labels=res.rm.labels.astype(np.int32),
-                            region_color=res.rm.color.astype(np.int32), palette_lab=res.rm.palette_lab)
+                            region_color=res.rm.color.astype(np.int32), palette_lab=res.rm.palette_lab,
+                            palette_lab_raw=(res.palette_lab_raw if res.palette_lab_raw is not None
+                                             else res.rm.palette_lab),
+                            n_before=np.int64(res.rm.n_before))
         rec("project/regions.npz", "npz")
         _write_json(tmp / "project/project.json", {
             "project_format_version": PROJECT_FORMAT_VERSION,
@@ -127,9 +131,9 @@ def build_package(res, out_root: str | Path, photo: str | Path, force: bool = Fa
             "project_name": s.project_name,
             "status": "blocked" if blocked else "generated",
             "settings": s.to_dict(),
-            "effective": {"colors": s.colors, "line_mm": res.line_mm, "canvas_mm": [res.width_mm, res.height_mm],
+            "effective": {"merged_for_numbers": res.report.get("regions_merged_for_numbers", 0), "colors": s.colors, "line_mm": res.line_mm, "canvas_mm": [res.width_mm, res.height_mm],
                           "px_per_mm": res.px_per_mm},
-            "source": {"file": src_rel, "sha256": _sha256(tmp / src_rel), "original_name": photo.name},
+            "source": {"file": src_rel, "sha256": _sha256(tmp / src_rel), "original_name": original_name or photo.name},
             "palette": [{"number": p["number"], "paint_code": p["paint_code"], "paint_name": p["paint_name"],
                          "hex": p["hex"], "lab": p["lab"]}
                         for p in res.spec["paints"]],

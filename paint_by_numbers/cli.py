@@ -6,6 +6,7 @@ import sys
 from .compare import default_variants, generate_best
 from .generate import generate, preview_zones
 from .palette.catalog import CatalogError, load_catalog
+from .project import ProjectError, open_project
 from .pipeline.priority_zones import ZoneError, load_zones_file, parse_zones
 from .quality.warnings import summarize
 from .settings import PRESETS, Settings
@@ -16,7 +17,9 @@ def main(argv: list[str] | None = None) -> int:
                                  description="Фото -> виробничий пакет картини за номерами")
     ap.add_argument("photo", nargs="?", help="шлях до фотографії")
     ap.add_argument("--selftest", action="store_true", help="самоперевірка збірки: синтетичне фото, пакет, порівняння")
-    ap.add_argument("-o", "--out", default="out", help="коренева папка (всередині створюється order_XXXXXX/)")
+    ap.add_argument("-o", "--out", default=None, help="коренева папка (всередині створюється order_XXXXXX/); типово out")
+    ap.add_argument("--open-project", metavar="ПАПКА", default=None,
+                    help="відкрити збережене замовлення (order_XXXXXX) без перерахунку; з -o зберігає пакет заново")
     ap.add_argument("--order", default="000001", help="номер замовлення")
     ap.add_argument("--name", default="", help="назва проєкту")
     ap.add_argument("--mode", choices=list(PRESETS), default="balanced")
@@ -47,8 +50,11 @@ def main(argv: list[str] | None = None) -> int:
     a = ap.parse_args(argv)
     if a.selftest:
         return selftest()
+    if a.open_project:
+        return reopen(a.open_project, a.out, a.force)
     if not a.photo:
         ap.error("потрібен шлях до фотографії")
+    a.out = a.out or "out"
     if a.colors is not None and not 4 <= a.colors <= 64:
         ap.error("--colors має бути в межах 4..64")
     if a.safety_factor < 1:
@@ -113,6 +119,23 @@ def main(argv: list[str] | None = None) -> int:
     if res.blocked:
         print("ВИРОБНИЧИЙ ПАКЕТ ЗАБЛОКОВАНО критичними помилками (використайте --force лише після перевірки).")
         return 2
+    return 0
+
+
+def reopen(folder: str, out: str | None, force: bool) -> int:
+    from .export.package import build_package
+    try:
+        res = open_project(folder)
+    except ProjectError as e:
+        print(f"Помилка проєкту: {e}", file=sys.stderr)
+        return 2
+    sm, t = summarize(res.warnings), res.spec["totals"]
+    print(f"Проєкт відкрито: {res.original_name}, ділянок {res.report['regions_final']}, кольорів {t['paints']}, "
+          f"ємностей {t['containers']}; попередження: критичних {sm['critical']}, звичайних {sm['warning']}")
+    if out:
+        info = build_package(res, out, res.source_photo, force=force, original_name=res.original_name)
+        print(f"Пакет збережено: {info['dir']}" + (" (виробничі файли заблоковано)" if info["blocked"] else ""))
+        return 2 if info["blocked"] else 0
     return 0
 
 

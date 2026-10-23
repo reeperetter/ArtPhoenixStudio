@@ -19,6 +19,7 @@ from ..generate import run_pipeline
 from ..export.package import build_package
 from ..image_io.loader import load_image
 from ..palette.catalog import CatalogError, load_catalog
+from ..project import ProjectError, open_project
 from ..pipeline.priority_zones import MAX_WEIGHT, ZoneError, load_zones_file, parse_zones
 from ..settings import PRESETS, Settings
 from .canvas_view import ImageView, ZoneCanvas
@@ -40,7 +41,9 @@ class Job(QThread):
     def run(self):
         try:
             self.done.emit(self._fn())
-        except Exception as e:                      # повідомлення зрозуміле оператору, без стеку
+        except (ProjectError, ZoneError, CatalogError) as e:     # повідомлення вже зрозуміле оператору
+            self.failed.emit(str(e))
+        except Exception as e:
             self.failed.emit(f"{type(e).__name__}: {e}")
 
 
@@ -76,9 +79,14 @@ class MainWindow(QMainWindow):
         f = QVBoxLayout(g)
         self.btn_open = QPushButton("Відкрити фото…")
         self.btn_open.clicked.connect(self.open_photo)
+        self.btn_open_proj = QPushButton("Відкрити проєкт (папку замовлення)…")
+        self.btn_open_proj.setToolTip("Повертає збережене замовлення без перерахунку: налаштування, зони, фарби й результат")
+        self.btn_open_proj.clicked.connect(self.open_project_dialog)
+        self.original_name: str | None = None
         self.lbl_photo = QLabel("файл не вибрано")
         self.lbl_photo.setWordWrap(True)
         f.addWidget(self.btn_open)
+        f.addWidget(self.btn_open_proj)
         f.addWidget(self.lbl_photo)
         lv.addWidget(g)
 
@@ -268,6 +276,7 @@ class MainWindow(QMainWindow):
     def _build_menu(self) -> None:
         m = self.menuBar().addMenu("Файл")
         for text, fn, key in (("Відкрити фото…", self.open_photo, QKeySequence.StandardKey.Open),
+                              ("Відкрити проєкт (папку замовлення)…", self.open_project_dialog, QKeySequence("Ctrl+Shift+O")),
                               ("Зони із файлу…", self.load_zones, None), ("Зони у файл…", self.save_zones, None),
                               ("Створити превʼю", self.generate, QKeySequence("Ctrl+R")),
                               ("Зберегти пакет…", self.save_package, QKeySequence.StandardKey.Save),
@@ -286,6 +295,7 @@ class MainWindow(QMainWindow):
         if not path:
             return
         self.photo = path
+        self.original_name = None
         self.prefs.set("last_photo_dir", str(Path(path).parent))
         self.lbl_photo.setText(Path(path).name)
         self.res = None
@@ -444,6 +454,7 @@ class MainWindow(QMainWindow):
         self.btn_cmp.setEnabled(has and not busy)
         self.btn_save.setEnabled(self.res is not None and not busy)
         self.btn_open.setEnabled(not busy)
+        self.btn_open_proj.setEnabled(not busy)
 
     def _invalidate(self, *_):
         if self.res is not None:
@@ -532,7 +543,8 @@ class MainWindow(QMainWindow):
         res.settings.order_number = self.ed_order.text().strip() or "000001"
         res.settings.project_name = self.ed_name.text().strip()
         self._busy(True, "Збереження пакета…")
-        self.job = Job(lambda: build_package(res, folder, photo, force=force), self)
+        oname = self.original_name
+        self.job = Job(lambda: build_package(res, folder, photo, force=force, original_name=oname), self)
         self.job.done.connect(lambda info: self._saved(info, folder))
         self.job.failed.connect(self._job_failed)
         self.job.finished.connect(self._job_finished)
@@ -549,7 +561,8 @@ class MainWindow(QMainWindow):
                 QTimer.singleShot(0, lambda: self.save_package(folder, force=True))
             return
         self.lbl_status.setText(f"Пакет збережено: {info['dir']}")
-        QMessageBox.information(self, "Готово", f"Пакет збережено:\n{info['dir']}")
+        QMessageBox.information(self, "Готово", f"Пакет збережено:\n{info['dir']}\n\n"
+                                "Пізніше його можна відкрити без перерахунку: «Відкрити проєкт».")
 
     # ------------------------------------------------------------------ порівняння варіантів
     def compare_variants(self) -> None:
@@ -666,3 +679,58 @@ class MainWindow(QMainWindow):
     def closeEvent(self, e):
         self._save_prefs()
         super().closeEvent(e)
+
+    # ------------------------------------------------------------------ відкриття проєкту
+    def open_project_dialog(self, folder: str | None = None) -> None:
+        if self.job:
+            return
+        if not folder:
+            folder = QFileDialog.getExistingDirectory(self, "Папка замовлення (order_XXXXXX)", self.prefs.get("last_save_dir"))
+        if not folder:
+            return
+        self.res = None
+        self._busy(True, "Відкриття проєкту…")
+        self.job = Job(lambda: open_project(folder), self)
+        self.job.done.connect(self._project_opened)
+        self.job.failed.connect(self._job_failed)
+        self.job.finished.connect(self._job_finished)
+        self.job.start()
+
+    def _project_opened(self, res) -> None:
+        s = res.settings
+        widgets = (self.sp_w, self.sp_h, self.cmb_mode, self.cb_auto_h, self.cb_auto_colors, self.sp_colors,
+                   self.sp_cov, self.sp_k, self.cb_cov_ok, self.ed_order, self.ed_name)
+        for w in widgets:
+            w.blockSignals(True)
+        self.sp_w.setValue(s.width_mm)
+        self.cb_auto_h.setChecked(s.height_mm is None)
+        self.sp_h.setValue(s.height_mm if s.height_mm is not None else res.height_mm)
+        self.sp_h.setEnabled(s.height_mm is not None)
+        self.cmb_mode.setCurrentIndex(list(PRESETS).index(s.mode))
+        self.cb_auto_colors.setChecked(s.n_colors is None)
+        self.sp_colors.setValue(s.n_colors if s.n_colors is not None else self.sp_colors.value())
+        self.sp_colors.setEnabled(s.n_colors is not None)
+        self.sp_cov.setValue(s.coverage_mm2_per_container or 0)
+        self.sp_k.setValue(s.safety_factor)
+        self.cb_cov_ok.setChecked(bool(s.coverage_confirmed))
+        self.ed_order.setText(s.order_number)
+        self.ed_name.setText(s.project_name)
+        for w in widgets:
+            w.blockSignals(False)
+        self.catalog = list(s.catalog)
+        self.lbl_cat.setText(f"каталог із проєкту: {len(self.catalog)} фарб" if self.catalog
+                             else "каталог не задано (коди P-001…)")
+        self.zones = copy.deepcopy(list(s.zones))
+        for i, z in enumerate(self.zones):
+            z.setdefault("name", f"Зона {i + 1}")
+            z["weight"] = float(z.get("weight", 2.0))
+        self.photo = str(res.source_photo)
+        self.original_name = res.original_name
+        self.lbl_photo.setText(f"{res.original_name} (з проєкту)")
+        self._reload_timer.stop()
+        self._reload_canvas(fit=True)
+        self._refresh_zone_list(0 if self.zones else -1)
+        self.res = res                      # _reload_canvas/_refresh_zone_list не скасовують результат: він встановлюється останнім
+        self._generated(res)
+        self.lbl_status.setText("Проєкт відкрито без перерахунку. " + self.lbl_status.text())
+        self.prefs.set("last_save_dir", str(Path(res.source_photo).parent.parent.parent))

@@ -51,13 +51,16 @@ class Result:
     palette_img: np.ndarray = field(repr=False, default=None)
     compare_img: np.ndarray = field(repr=False, default=None)
     zones_img: np.ndarray = field(repr=False, default=None)
+    palette_lab_raw: np.ndarray | None = field(repr=False, default=None)   # палітра до підбору фарб каталогу
     candidates: dict | None = None             # звіт порівняння варіантів (compare.py)
     candidates_img: np.ndarray = field(repr=False, default=None)
     out_dir: Path | None = None
     blocked: bool = False
+    source_photo: Path | None = None       # заповнюється при відкритті проєкту
+    original_name: str | None = None
 
 
-def run_pipeline(photo: str | Path, settings: Settings) -> Result:
+def run_pipeline(photo: str | Path, settings: Settings, restored: dict | None = None) -> Result:
     t: dict = {}
     clock = time.perf_counter()
 
@@ -74,16 +77,20 @@ def run_pipeline(photo: str | Path, settings: Settings) -> Result:
     zmaps = build_zone_maps(settings, img)
     zw = zmaps.weight if zmaps else None
     unit = zmaps.unit if zmaps else None
-    lab = to_lab(denoise_zoned(img.bgr, p.denoise_iterations, unit))
+    _lab: list = []
+
+    def get_lab() -> np.ndarray:             # знебарвлена Lab потрібна лише для злиттів (дорогий крок обчислюється ліниво)
+        if not _lab:
+            _lab.append(to_lab(denoise_zoned(img.bgr, p.denoise_iterations, unit)))
+        return _lab[0]
+
+    if restored is None:
+        get_lab()
     sal = saliency_map(img.bgr)
     if unit is not None:
         sal = np.maximum(sal, unit)          # зона пріоритету = максимальна значущість
     lap("preprocess")
     k = settings.colors
-    qlabels, _ = quantize(lab, k, settings.seed, weights=None if zw is None else 1.0 + zw)
-    lap("quantize")
-    L0, col0 = connected_regions(qlabels, k)
-    lap("components")
     base_min_px = p.min_area_mm2 * ppm * ppm
     min_digit_px = p.min_digit_mm * ppm
     max_digit_px = min_digit_px * 1.6
@@ -92,34 +99,45 @@ def run_pipeline(photo: str | Path, settings: Settings) -> Result:
     n_dig = 2 if k > 9 else 1
     r_cap = 0.5 * math.sqrt((0.62 * n_dig) ** 2 + 1.0) * min_digit_px + line_px / 2.0
     floor_px = math.pi * r_cap ** 2
-    rm = merge_small_regions(L0, col0, lab, sal, base_min_px, zone=zw, zone_floor_px=floor_px)
-    lap("merge")
-    # вузькі виступи й перемички вужчі за мінімальну ширину (розділ 8.3 ТЗ), далі повторне об'єднання
-    L1 = remove_protrusions(rm.labels, 0.5 * p.min_width_mm * ppm, sal,
-                            protect=None if unit is None else unit > 0.3)
-    if L1 is not rm.labels:
-        cl, cc = connected_regions(rm.color[L1], len(rm.palette_lab))
-        rm = merge_small_regions(cl, cc, lab, sal, base_min_px, zone=zw, zone_floor_px=floor_px)
-    lap("protrusions")
-
-    # ділянки без місця для номера об'єднуються із сусідами; різко контрастні деталі лишаються
-    # й потрапляють у звіт (розділ 9.3 ТЗ). Кілька проходів, бо після об'єднання радіуси змінюються.
-    for _ in range(MAX_NARROW_PASSES):
-        spots = preview.place_numbers(rm, min_digit_px, max_digit_px, line_px)
-        bad = np.array([s.digit_px <= 0 for s in spots])
-        if not bad.any():
-            break
-        before = len(rm.area_px)
-        rm = merge_small_regions(rm.labels, rm.color, lab, sal, base_min_px, forced=bad,
-                                 keep_contrast=KEEP_CONTRAST, n_before=rm.n_before, zone=zw, zone_floor_px=floor_px)
-        if len(rm.area_px) == before:
-            break
-    lap("numbers")
+    if restored is not None:
+        # відкриття збереженого проєкту: розбиття на ділянки вже готове, повторного квантування й злиттів немає
+        rm = RegionMap(restored["labels"], restored["region_color"], np.bincount(restored["labels"].ravel(),
+                       minlength=len(restored["region_color"])).astype(np.int64), restored["palette_lab"].copy(),
+                       int(restored["n_before"]))
+        lap("restore")
+    else:
+        lab = get_lab()
+        qlabels, _ = quantize(lab, k, settings.seed, weights=None if zw is None else 1.0 + zw)
+        lap("quantize")
+        L0, col0 = connected_regions(qlabels, k)
+        lap("components")
+        rm = merge_small_regions(L0, col0, lab, sal, base_min_px, zone=zw, zone_floor_px=floor_px)
+        lap("merge")
+        # вузькі виступи й перемички вужчі за мінімальну ширину (розділ 8.3 ТЗ), далі повторне об'єднання
+        L1 = remove_protrusions(rm.labels, 0.5 * p.min_width_mm * ppm, sal,
+                                protect=None if unit is None else unit > 0.3)
+        if L1 is not rm.labels:
+            cl, cc = connected_regions(rm.color[L1], len(rm.palette_lab))
+            rm = merge_small_regions(cl, cc, lab, sal, base_min_px, zone=zw, zone_floor_px=floor_px)
+        lap("protrusions")
+        # ділянки без місця для номера об'єднуються із сусідами; різко контрастні деталі лишаються
+        # й потрапляють у звіт (розділ 9.3 ТЗ). Кілька проходів, бо після об'єднання радіуси змінюються.
+        for _ in range(MAX_NARROW_PASSES):
+            spots = preview.place_numbers(rm, min_digit_px, max_digit_px, line_px)
+            bad = np.array([s.digit_px <= 0 for s in spots])
+            if not bad.any():
+                break
+            before = len(rm.area_px)
+            rm = merge_small_regions(rm.labels, rm.color, lab, sal, base_min_px, forced=bad,
+                                     keep_contrast=KEEP_CONTRAST, n_before=rm.n_before, zone=zw, zone_floor_px=floor_px)
+            if len(rm.area_px) == before:
+                break
+        lap("numbers")
 
     # Остаточна гарантія (розділ 9.3 ТЗ): кожна ділянка має номер --- або всередині, або на виносці.
     # Ділянки, що лишилися без номера навіть на виносці, зливаються із сусідом (без винятків за контрастом),
     # після чого геометрія й номери перераховуються.
-    merged_for_numbers = 0
+    merged_for_numbers = int(restored.get("merged_for_numbers", 0)) if restored else 0
     for _ in range(MAX_FINAL_PASSES):
         geom = build_geometry(rm.labels, sal)
         spots = place_numbers_vector(geom.faces, rm.color, min_digit_px, max_digit_px, line_px)
@@ -128,7 +146,7 @@ def run_pipeline(photo: str | Path, settings: Settings) -> Result:
         if not bad.any():
             break
         before = len(rm.area_px)
-        rm = merge_small_regions(rm.labels, rm.color, lab, sal, base_min_px, forced=bad, keep_contrast=None,
+        rm = merge_small_regions(rm.labels, rm.color, get_lab(), sal, base_min_px, forced=bad, keep_contrast=None,
                                  n_before=rm.n_before, zone=zw, zone_floor_px=floor_px)
         merged_for_numbers += before - len(rm.area_px)
         if len(rm.area_px) == before:
@@ -139,6 +157,7 @@ def run_pipeline(photo: str | Path, settings: Settings) -> Result:
         leaders = place_leaders(spots, geom.chains, rm.labels.shape, min_digit_px, line_px, ppm)
     lap("geometry+labels")
     cat_match = None
+    palette_raw = rm.palette_lab.copy()
     if settings.catalog:                  # реальні фарби: превʼю й метрики далі рахуються за кольорами фарб
         cat_match = match_palette(rm.palette_lab, settings.catalog)
         rm.palette_lab = np.array([m.paint["lab"] for m in cat_match], np.float32)
@@ -198,7 +217,7 @@ def run_pipeline(photo: str | Path, settings: Settings) -> Result:
     }
     return Result(settings, rm, geom, spots, spec, report, warns, img.width_mm, img.height_mm, ppm, p.line_mm,
                   color_img, contour_img, numbered_img, palette_img, compare_img,
-                  preview.render_zones(img.bgr, zmaps) if zmaps else None)
+                  preview.render_zones(img.bgr, zmaps) if zmaps else None, palette_lab_raw=palette_raw)
 
 
 def build_zone_maps(settings: Settings, img) -> ZoneMaps | None:
