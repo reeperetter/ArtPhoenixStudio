@@ -220,6 +220,17 @@ class BatchDialog(QDialog):
         bad = sum(r["status"] in ("error", "blocked") for r in rows)
         self.lbl_status.setText(f"Готово: {ok} з {len(rows)}" + (f", потребують уваги: {bad}" if bad else "")
                                 + f". Звіт: {rep}")
+        if self.base.catalog and ok:
+            from ..purchase import PurchaseError, build_purchase_list, write_purchase_files
+            try:
+                data = build_purchase_list(self.lbl_out.text())
+                write_purchase_files(data, self.lbl_out.text())
+                self.lbl_status.setText(self.lbl_status.text() + f". Закупівля: {data['totals']['containers']} ємн. "
+                                        f"({data['totals']['paints']} фарб) --- purchase_list.xlsx")
+            except (PurchaseError, OSError) as e:
+                self.lbl_status.setText(self.lbl_status.text() + f". Закупівля не створена: {e}")
+        elif ok:
+            self.lbl_status.setText(self.lbl_status.text() + ". Список закупівлі потребує каталогу фарб.")
 
     def _failed(self, msg: str) -> None:
         QMessageBox.critical(self, "Пакетна обробка", msg)

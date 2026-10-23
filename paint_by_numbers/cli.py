@@ -52,6 +52,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--order-start", type=int, default=1, help="перший номер при послідовній нумерації")
     ap.add_argument("--order-prefix", default="", help="префікс номера замовлення в пакетній обробці")
     ap.add_argument("--skip-existing", action="store_true", help="пакетна обробка: пропускати вже готові замовлення")
+    ap.add_argument("--purchase-list", metavar="ПАПКА", default=None,
+                    help="зібрати загальний список закупівлі фарб з готових замовлень (order_*) у папці; потрібен каталог фарб")
+    ap.add_argument("--bulk-ml", type=float, default=None, help="обʼєм великої тари фарби, мл (для переліку закупівлі)")
+    ap.add_argument("--fill-loss", type=float, default=0.0, help="втрати при розливі, %% (для переліку закупівлі)")
     ap.add_argument("--preview-zones", action="store_true",
                     help="лише намалювати зони на фото (zones_preview.png) і вийти")
     ap.add_argument("--force", action="store_true", help="сформувати пакет попри критичні помилки")
@@ -60,6 +64,8 @@ def main(argv: list[str] | None = None) -> int:
         return selftest()
     if a.open_project:
         return reopen(a.open_project, a.out, a.force)
+    if a.purchase_list:
+        return purchase_cli(a.purchase_list, a.bulk_ml, a.fill_loss)
     if not a.photo and not a.batch:
         ap.error("потрібен шлях до фотографії (або --batch)")
     a.out = a.out or "out"
@@ -155,7 +161,29 @@ def run_batch_cli(a, base: Settings) -> int:
     from collections import Counter
     c = Counter(r["status"] for r in rows)
     print("Підсумок: " + ", ".join(f"{marks.get(k, k)} {v}" for k, v in c.items()) + f". Звіт: {rep}")
+    if base.catalog and any(r["status"] == "ok" for r in rows):
+        purchase_cli(a.out, a.bulk_ml, a.fill_loss)
+    elif not base.catalog:
+        print("Загальний список закупівлі не створено: потрібен каталог фарб (--catalog).")
     return exit_code(rows)
+
+
+def purchase_cli(root: str, bulk_ml: float | None, fill_loss: float) -> int:
+    from .purchase import PurchaseError, build_purchase_list, write_purchase_files
+    try:
+        data = build_purchase_list(root, bulk_ml, fill_loss)
+        files = write_purchase_files(data, root)
+    except (PurchaseError, OSError) as e:
+        print(f"Список закупівлі: {e}", file=sys.stderr)
+        return 2
+    t = data["totals"]
+    print(f"Список закупівлі: замовлень {t['orders']}, фарб {t['paints']}, ємностей {t['containers']} ({t['total_ml']:g} мл)"
+          f"{' [орієнтовно]' if data['provisional'] else ''}: {files['xlsx']}")
+    for e in data["excluded_orders"]:
+        print(f"  не включено {e['order']}: {e['reason']}")
+    if data["code_conflicts"]:
+        print(f"  УВАГА: {len(data['code_conflicts'])} збігів коду з різним кольором (змішані каталоги?)")
+    return 0
 
 
 def reopen(folder: str, out: str | None, force: bool) -> int:
