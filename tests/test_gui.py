@@ -425,3 +425,75 @@ def test_batch_dialog(tmp_path, monkeypatch):
     assert (tmp_path / "result" / "batch_report.csv").exists() and (tmp_path / "result" / "order_p2").is_dir()
     assert dlg.btn_close.isEnabled() and "Готово: 2 з 3" in dlg.lbl_status.text()
     dlg.close()
+
+
+def test_window_manual_region_editing(tmp_path, monkeypatch):
+    from PySide6.QtCore import QPointF, Qt
+    from PySide6.QtGui import QMouseEvent
+    from PySide6.QtWidgets import QApplication, QMessageBox
+    from paint_by_numbers.gui.main_window import MainWindow
+    app = QApplication.instance() or QApplication([])
+    monkeypatch.setattr(QMessageBox, "information", lambda *a, **k: None)
+    def boom(*a, **k):
+        raise AssertionError(f"модальне вікно помилки: {a}")
+    monkeypatch.setattr(QMessageBox, "critical", boom)       # модальне вікно підвісило б тест
+    rng = np.random.default_rng(3)
+    img = np.full((300, 400, 3), (200, 170, 120), np.uint8)
+    cv2.circle(img, (200, 150), 80, (40, 60, 200), -1)
+    img = np.clip(img.astype(int) + rng.integers(-10, 10, img.shape), 0, 255).astype(np.uint8)
+    photo = tmp_path / "p.png"
+    cv2.imwrite(str(photo), img)
+    w = MainWindow(Prefs(str(tmp_path / "prefs.ini")))
+    w.show()
+    w.open_photo(str(photo))
+    w.sp_w.setValue(120)
+    w.cb_auto_colors.setChecked(False)
+    w.sp_colors.setValue(8)
+    w.generate()
+    _wait(w, lambda: w.res is not None and w.job is None, 60)
+    assert w.edit_panel.isEnabled() and w.edit_panel.cmb.count() >= len(w.seg.palette_lab)
+    n0, c0 = w.res.report["regions_final"], len(w.seg.palette_lab)
+
+    # злиття: вибираємо найбільшу ділянку й сусідню через сигнали панелі
+    seg = w.seg
+    big = int(np.argmax(w.res.rm.area_px))
+    nb = sorted(seg.neighbors(big))[0]
+    def center(r):
+        ys, xs = np.nonzero(seg.labels == r)
+        i = len(xs) // 2
+        return float(xs[i]), float(ys[i])
+    w.tabs.setCurrentWidget(w.edit_panel)
+    w.edit_panel.set_tool("merge")
+    w.edit_panel._picked(*center(big))          # перший клік: ділянку виділено
+    assert w.edit_panel.view._hl
+    w.edit_panel._picked(*center(nb))           # другий клік: злиття
+    _wait(w, lambda: w.job is None and w.res.report.get("manual_edits") == 1, 60)
+    assert w.res.report["regions_final"] < n0
+    assert w.seg_history.can_undo and w.edit_panel.btn_undo.isEnabled()
+
+    # Ctrl+Z на вкладці редагування скасовує правку, повтор повертає
+    w.undo_zones()
+    _wait(w, lambda: w.job is None and w.res.report["regions_final"] == n0, 60)
+    assert w.res.report["manual_edits"] == 0         # після скасування діючих правок немає
+    w.redo_zones()
+    _wait(w, lambda: w.job is None and w.res.report["regions_final"] < n0, 60)
+    assert w.res.report["manual_edits"] == 1
+
+    # неможливе злиття (не сусідні/та сама ділянка) не змінює результат й не падає
+    before = w.res
+    w.edit_panel.set_tool("merge")
+    w.edit_panel._picked(*center(0))
+    w.edit_panel._picked(*center(0))
+    assert w.res is before and "не застосовано" in w.lbl_status.text()
+
+    # полігон і зміна кольору
+    w.edit_panel.set_tool("polygon")
+    w.edit_panel.polygonRequested.emit([(10, 10), (60, 10), (60, 50), (10, 50)], 0)
+    _wait(w, lambda: w.job is None and w.res.report.get("manual_edits") == 2, 60)
+
+    # нове превʼю після правок питає підтвердження; відмова нічого не скидає
+    monkeypatch.setattr(QMessageBox, "question", lambda *a, **k: QMessageBox.StandardButton.No)
+    r = w.res
+    w.generate()
+    assert w.res is r and w.job is None
+    w.close()

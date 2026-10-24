@@ -6,6 +6,7 @@ import copy
 import json
 from pathlib import Path
 
+import numpy as np
 from PySide6.QtCore import QThread, QTimer, Qt, Signal
 from PySide6.QtGui import QAction, QBrush, QColor, QKeySequence
 from PySide6.QtWidgets import (QAbstractItemView, QButtonGroup, QCheckBox, QComboBox, QDoubleSpinBox, QFileDialog,
@@ -25,6 +26,8 @@ from ..settings import PRESETS, Settings
 from .canvas_view import ImageView, ZoneCanvas
 from .batch_dialog import BatchDialog
 from .history import UndoStack
+from .region_editor import RegionEditPanel
+from ..edit import EditError, Segmentation, add_color, merge_into, paint_polygon, rebuild_result, recolor_region
 from .prefs import Prefs
 
 MODE_NAMES = {"simple": "Простий", "balanced": "Збалансований", "detailed": "Деталізований"}
@@ -261,6 +264,17 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(self.view_color, "Кольори")
         self.tabs.addTab(self.view_compare, "Порівняння")
         self.tabs.addTab(self.view_variants, "Варіанти")
+        self.edit_panel = RegionEditPanel()
+        self.tabs.insertTab(3, self.edit_panel, "Редагування ділянок")
+        self.seg: Segmentation | None = None
+        self._choices: list = []
+        self.seg_history = UndoStack(None, limit=30)
+        self.edit_panel.recolorRequested.connect(self._edit_recolor)
+        self.edit_panel.mergeRequested.connect(self._edit_merge)
+        self.edit_panel.polygonRequested.connect(self._edit_polygon)
+        self.edit_panel.undoRequested.connect(self.undo_zones)
+        self.edit_panel.redoRequested.connect(self.redo_zones)
+        self.edit_panel.highlightPoint.connect(self._edit_highlight)
         right = QWidget()
         rv = QVBoxLayout(right)
         rv.setContentsMargins(0, 0, 0, 0)
@@ -349,12 +363,16 @@ class MainWindow(QMainWindow):
         self.lbl_status.setText(f"{verb}: {label}.")
 
     def undo_zones(self) -> None:
+        if self.tabs.currentWidget() is self.edit_panel:
+            return self._undo_edit(redo=False)
         label = self.history.undo_label
         state = self.history.undo()
         if state is not None:
             self._restore(state, "Відмінено", label)
 
     def redo_zones(self) -> None:
+        if self.tabs.currentWidget() is self.edit_panel:
+            return self._undo_edit(redo=True)
         label = self.history.redo_label
         state = self.history.redo()
         if state is not None:
@@ -546,6 +564,8 @@ class MainWindow(QMainWindow):
     def _invalidate(self, *_):
         if self.res is not None:
             self.res = None
+            self.seg = None
+            self.edit_panel.show_image(None, 1)
             self.lbl_status.setText("Налаштування змінено: створіть превʼю знову, щоб зберегти пакет.")
             self._update_buttons()
 
@@ -557,8 +577,13 @@ class MainWindow(QMainWindow):
         except ZoneError as e:
             QMessageBox.warning(self, "Помилка в зонах", str(e))
             return
+        if self.res is not None and self.res.report.get("manual_edits"):
+            if QMessageBox.question(self, "Ручні правки", "Нове превʼю скасує ручні правки ділянок. Продовжити?") \
+                    != QMessageBox.StandardButton.Yes:
+                return
         photo = self.photo
         self.res = None
+        self.seg = None
         self._busy(True, "Створення превʼю… (зазвичай 10–40 с)")
         self.job = Job(lambda: run_pipeline(photo, s), self)
         self.job.done.connect(self._generated)
@@ -577,12 +602,17 @@ class MainWindow(QMainWindow):
         self.lbl_status.setText("Помилка")
         QMessageBox.critical(self, "Помилка", msg)
 
-    def _generated(self, res) -> None:
+    def _generated(self, res, edited: bool = False) -> None:
         self.res = res
-        self.view_numbers.set_image(res.numbered_img)
-        self.view_color.set_image(res.color_img)
-        self.view_compare.set_image(res.compare_img)
-        self.tabs.setCurrentWidget(self.view_numbers)
+        keep = edited
+        self.view_numbers.set_image(res.numbered_img, keep_view=keep)
+        self.view_color.set_image(res.color_img, keep_view=keep)
+        self.view_compare.set_image(res.compare_img, keep_view=keep)
+        if not edited:
+            self.seg = Segmentation.from_result(res)
+            self.seg_history.reset(self.seg)
+            self.tabs.setCurrentWidget(self.view_numbers)
+        self._fill_edit_panel(res)
         self._fill_spec(res)
         self._fill_warnings(res)
         r = res.report
@@ -592,6 +622,95 @@ class MainWindow(QMainWindow):
             f"({t['total_ml']:g} мл){' (орієнтовно)' if res.spec['calculation']['provisional'] else ''}. "
             f"Номерів на виносках: {r.get('regions_with_leader', 0)}, без номера: {r['regions_without_number_room']}.")
         self._update_buttons()
+
+    # ------------------------------------------------------------------ ручне редагування ділянок
+    def _fill_edit_panel(self, res) -> None:
+        self._choices, items = [], []
+        by_number = {p["number"]: p for p in res.spec["paints"]}
+        for i in range(len(self.seg.palette_lab)):
+            p = by_number.get(i + 1)
+            if p:
+                items.append((f'{p["number"]}. {p["paint_code"]} {p["paint_name"]}'.strip(), p["hex"]))
+                self._choices.append(("pal", i))
+        for c in res.settings.catalog:
+            if np.abs(self.seg.palette_lab - np.asarray(c["lab"], np.float32)).sum(1).min() > 0.01:
+                items.append((f'+ {c["code"]} {c.get("name", "")} (зі складу)'.strip(), c["hex"]))
+                self._choices.append(("stock", c["lab"]))
+        self.edit_panel.set_choices(items)
+        self.edit_panel.show_image(res.numbered_img, self.seg.shape[1])
+        self.edit_panel.view.set_highlight(None)
+        self.edit_panel.set_undo_state(self.seg_history.can_undo, self.seg_history.can_redo)
+
+    def _edit_ready(self) -> bool:
+        return self.res is not None and self.seg is not None and self.job is None
+
+    def _edit_highlight(self, x: float, y: float) -> None:
+        if self.seg is None:
+            return
+        try:
+            self.edit_panel.view.set_highlight(self.seg.labels == self.seg.region_at(x, y))
+        except EditError:
+            pass
+
+    def _edit_color(self, idx: int):
+        if not 0 <= idx < len(self._choices):
+            raise EditError("Оберіть колір у списку.")
+        kind, v = self._choices[idx]
+        return (self.seg, v) if kind == "pal" else add_color(self.seg, v)
+
+    def _edit_recolor(self, x: float, y: float, idx: int) -> None:
+        self._apply_edit(lambda: recolor_region(*(lambda sc: (sc[0], sc[0].region_at(x, y), sc[1]))(self._edit_color(idx))),
+                         "зміна кольору ділянки")
+
+    def _edit_merge(self, x0: float, y0: float, x1: float, y1: float) -> None:
+        self._apply_edit(lambda: merge_into(self.seg, self.seg.region_at(x0, y0), self.seg.region_at(x1, y1)),
+                         "злиття ділянок")
+
+    def _edit_polygon(self, pts: list, idx: int) -> None:
+        self._apply_edit(lambda: paint_polygon(*(lambda sc: (sc[0], pts, sc[1]))(self._edit_color(idx))), "зафарбований полігон")
+
+    def _apply_edit(self, make, label: str) -> None:
+        if not self._edit_ready():
+            return
+        try:
+            new = make()
+        except EditError as e:
+            self.lbl_status.setText(f"Правку не застосовано: {e}")
+            return
+        self._run_rebuild(new, label, record=True)
+
+    def _undo_edit(self, redo: bool) -> None:
+        h = self.seg_history
+        if not self._edit_ready() or not (h.can_redo if redo else h.can_undo):
+            return
+        label = h.redo_label if redo else h.undo_label
+        seg = h.redo() if redo else h.undo()
+        self._run_rebuild(seg, ("Повторено: " if redo else "Скасовано: ") + label, record=False)
+
+    def _run_rebuild(self, seg, label: str, record: bool) -> None:
+        res0 = self.res
+        self._busy(True, "Перерахунок після правки…")
+        self.edit_panel.setEnabled(False)
+        self.job = Job(lambda: rebuild_result(seg, res0, edits=1 if record else 0), self)
+        self.job.done.connect(lambda r: self._edited(r, seg, label, record))
+        self.job.failed.connect(self._edit_failed)
+        self.job.finished.connect(self._job_finished)
+        self.job.start()
+
+    def _edited(self, res, seg, label: str, record: bool) -> None:
+        self.seg = seg
+        if record:
+            self.seg_history.push(seg, label)
+        res.report["manual_edits"] = self.seg_history.position          # діючі правки (після Ctrl+Z меншає)
+        self._generated(res, edited=True)
+        self.lbl_status.setText(f"{label[:1].upper() + label[1:]}: {res.report['regions_final']} ділянок, "
+                                f"{res.spec['totals']['paints']} кольорів, {res.spec['totals']['containers']} ємностей.")
+
+    def _edit_failed(self, msg: str) -> None:
+        self.edit_panel.setEnabled(True)
+        self.seg_history.reset(self.seg)
+        self.edit_panel.set_undo_state(False, False)
+        self._job_failed(msg)
 
     def _fill_spec(self, res) -> None:
         paints = res.spec["paints"]

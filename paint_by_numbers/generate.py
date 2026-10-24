@@ -56,7 +56,7 @@ class Result:
     candidates_img: np.ndarray = field(repr=False, default=None)
     out_dir: Path | None = None
     blocked: bool = False
-    source_photo: Path | None = None       # заповнюється при відкритті проєкту
+    source_photo: Path | None = None       # вихідний файл (при відкритті проєкту --- копія з пакета)
     original_name: str | None = None
 
 
@@ -224,7 +224,8 @@ def run_pipeline(photo: str | Path, settings: Settings, restored: dict | None = 
     }
     return Result(settings, rm, geom, spots, spec, report, warns, img.width_mm, img.height_mm, ppm, p.line_mm,
                   color_img, contour_img, numbered_img, palette_img, compare_img,
-                  preview.render_zones(img.bgr, zmaps) if zmaps else None, palette_lab_raw=palette_raw)
+                  preview.render_zones(img.bgr, zmaps) if zmaps else None, palette_lab_raw=palette_raw,
+                  source_photo=Path(photo), original_name=Path(photo).name)
 
 
 def build_zone_maps(settings: Settings, img) -> ZoneMaps | None:

@@ -34,6 +34,11 @@ class UndoStack:
         self._pos = 0
 
     @property
+    def position(self) -> int:
+        """Скільки кроків від початкового стану (для історії правок ділянок: кількість діючих правок)."""
+        return self._pos
+
+    @property
     def can_undo(self) -> bool:
         return self._pos > 0
 
