@@ -56,6 +56,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--skip-existing", action="store_true", help="пакетна обробка: пропускати вже готові замовлення")
     ap.add_argument("--purchase-list", metavar="ПАПКА", default=None,
                     help="зібрати загальний список закупівлі фарб з готових замовлень (order_*) у папці; потрібен каталог фарб")
+    ap.add_argument("--kit-items", metavar="ФАЙЛ", default=None,
+                    help="JSON зі складом комплекту для листа складання: [{\"name\": \"Пензлик\", \"qty\": 3}, …]")
     ap.add_argument("--journal", metavar="ПАПКА", default=None,
                     help="зібрати журнал замовлень і статистику використання кольорів складу з готових пакетів у папці")
     ap.add_argument("--bulk-ml", type=float, default=None, help="обʼєм великої тари фарби, мл (для переліку закупівлі)")
@@ -94,7 +96,15 @@ def main(argv: list[str] | None = None) -> int:
         except (CatalogError, OSError) as e:
             print(f"Помилка в каталозі фарб: {e}", file=sys.stderr)
             return 2
-    s = Settings(catalog=catalog, catalog_select=not a.catalog_snap, catalog_max_de2000=a.catalog_max_de, mode=a.mode, n_colors=a.colors, width_mm=a.width_mm, height_mm=a.height_mm,
+    extra = {}
+    if a.kit_items:
+        from .export.assembly import load_kit_items
+        try:
+            extra["kit_items"] = load_kit_items(a.kit_items)
+        except (ValueError, OSError) as e:
+            print(f"Помилка у складі комплекту: {e}", file=sys.stderr)
+            return 2
+    s = Settings(extra=extra, catalog=catalog, catalog_select=not a.catalog_snap, catalog_max_de2000=a.catalog_max_de, mode=a.mode, n_colors=a.colors, width_mm=a.width_mm, height_mm=a.height_mm,
                  px_per_mm=a.px_per_mm, seed=a.seed, order_number=a.order, project_name=a.name,
                  coverage_mm2_per_container=a.coverage_mm2, safety_factor=a.safety_factor,
                  coverage_confirmed=a.coverage_confirmed, zones=zones, zone_feather_mm=a.zone_feather_mm)

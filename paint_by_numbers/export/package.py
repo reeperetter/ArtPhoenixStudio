@@ -14,6 +14,7 @@ import numpy as np
 
 from ..quality.warnings import summarize
 from ..settings import ALGORITHM_VERSION, PROJECT_FORMAT_VERSION
+from .assembly import write_assembly_pdf
 from .pdf import write_print_pdf, write_spec_pdf
 from .svg import write_svg
 
@@ -103,6 +104,8 @@ def build_package(res, out_root: str | Path, photo: str | Path, force: bool = Fa
                     "height_mm": res.height_mm, "mode": s.mode, "container_ml": s.container_ml}
             sinfo = write_spec_pdf(tmp / "production/production_specification.pdf", res.spec, meta, res.warnings)
             rec("production/production_specification.pdf", "pdf", **sinfo)
+            ainfo = write_assembly_pdf(tmp / "production/assembly_sheet.pdf", res.spec, meta, s.extra.get("kit_items") or None)
+            rec("production/assembly_sheet.pdf", "pdf", **ainfo)
             _write_json(tmp / "production/production_specification.json", {
                 "order_number": s.order_number, "canvas_mm": [res.width_mm, res.height_mm],
                 "line_mm": res.line_mm, "paints": res.spec["paints"], "totals": res.spec["totals"],
