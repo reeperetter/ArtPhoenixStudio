@@ -56,6 +56,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--skip-existing", action="store_true", help="пакетна обробка: пропускати вже готові замовлення")
     ap.add_argument("--purchase-list", metavar="ПАПКА", default=None,
                     help="зібрати загальний список закупівлі фарб з готових замовлень (order_*) у папці; потрібен каталог фарб")
+    ap.add_argument("--store-name", default="", help="назва магазину в макеті попереднього перегляду для клієнта")
     ap.add_argument("--kit-items", metavar="ФАЙЛ", default=None,
                     help="JSON зі складом комплекту для листа складання: [{\"name\": \"Пензлик\", \"qty\": 3}, …]")
     ap.add_argument("--journal", metavar="ПАПКА", default=None,
@@ -96,7 +97,7 @@ def main(argv: list[str] | None = None) -> int:
         except (CatalogError, OSError) as e:
             print(f"Помилка в каталозі фарб: {e}", file=sys.stderr)
             return 2
-    extra = {}
+    extra = {"store_name": a.store_name} if a.store_name else {}
     if a.kit_items:
         from .export.assembly import load_kit_items
         try:

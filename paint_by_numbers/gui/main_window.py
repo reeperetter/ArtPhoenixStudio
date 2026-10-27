@@ -227,6 +227,9 @@ class MainWindow(QMainWindow):
         self.ed_name = QLineEdit()
         f.addRow("Номер замовлення", self.ed_order)
         f.addRow("Назва проєкту", self.ed_name)
+        self.ed_store = QLineEdit()
+        self.ed_store.setPlaceholderText("для макета клієнта (необов'язково)")
+        f.addRow("Назва магазину", self.ed_store)
         self.btn_save = QPushButton("Зберегти пакет…")
         self.btn_save.clicked.connect(self.save_package)
         self.progress = QProgressBar(maximumHeight=10, textVisible=False)
@@ -545,7 +548,8 @@ class MainWindow(QMainWindow):
             height_mm=None if self.cb_auto_h.isChecked() else self.sp_h.value(),
             order_number=self.ed_order.text().strip() or "000001", project_name=self.ed_name.text().strip(),
             coverage_mm2_per_container=self.sp_cov.value() or None, safety_factor=self.sp_k.value(),
-            coverage_confirmed=self.cb_cov_ok.isChecked(), zones=copy.deepcopy(self.zones), catalog=list(self.catalog))
+            coverage_confirmed=self.cb_cov_ok.isChecked(), zones=copy.deepcopy(self.zones), catalog=list(self.catalog),
+            extra={"store_name": self.ed_store.text().strip()} if self.ed_store.text().strip() else {})
 
     def _busy(self, on: bool, text: str = "") -> None:
         self.progress.setRange(0, 0 if on else 1)
@@ -852,6 +856,7 @@ class MainWindow(QMainWindow):
         self.cb_cov_ok.setChecked(p.get("coverage_confirmed"))
         for w in widgets:
             w.blockSignals(False)
+        self.ed_store.setText(p.get("store_name"))
         cat = p.get("catalog_path")
         if cat:
             try:
@@ -874,6 +879,7 @@ class MainWindow(QMainWindow):
         p.set("coverage_mm2", float(self.sp_cov.value()))
         p.set("safety_factor", float(self.sp_k.value()))
         p.set("coverage_confirmed", self.cb_cov_ok.isChecked())
+        p.set("store_name", self.ed_store.text().strip())
         p.set_geometry(self.saveGeometry())
         p.sync()
 
@@ -921,6 +927,7 @@ class MainWindow(QMainWindow):
         self.cb_cov_ok.setChecked(bool(s.coverage_confirmed))
         self.ed_order.setText(s.order_number)
         self.ed_name.setText(s.project_name)
+        self.ed_store.setText(str(s.extra.get("store_name", "")))
         for w in widgets:
             w.blockSignals(False)
         self.catalog = list(s.catalog)

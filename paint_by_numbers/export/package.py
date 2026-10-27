@@ -15,6 +15,7 @@ import numpy as np
 from ..quality.warnings import summarize
 from ..settings import ALGORITHM_VERSION, PROJECT_FORMAT_VERSION
 from .assembly import write_assembly_pdf
+from .client_preview import write_client_preview
 from .pdf import write_print_pdf, write_spec_pdf
 from .svg import write_svg
 
@@ -104,6 +105,12 @@ def build_package(res, out_root: str | Path, photo: str | Path, force: bool = Fa
                     "height_mm": res.height_mm, "mode": s.mode, "container_ml": s.container_ml}
             sinfo = write_spec_pdf(tmp / "production/production_specification.pdf", res.spec, meta, res.warnings)
             rec("production/production_specification.pdf", "pdf", **sinfo)
+            from ..image_io.loader import load_image
+            orig = load_image(str(photo), res.width_mm, res.height_mm, res.px_per_mm).bgr
+            cinfo = write_client_preview(tmp / "preview/client_preview.pdf", tmp / "preview/client_before_after.png",
+                                         res, orig, str(s.extra.get("store_name", "")))
+            rec("preview/client_preview.pdf", "pdf", **cinfo)
+            rec("preview/client_before_after.png", "png")
             ainfo = write_assembly_pdf(tmp / "production/assembly_sheet.pdf", res.spec, meta, s.extra.get("kit_items") or None)
             rec("production/assembly_sheet.pdf", "pdf", **ainfo)
             _write_json(tmp / "production/production_specification.json", {
