@@ -17,6 +17,7 @@ from ..settings import ALGORITHM_VERSION, PROJECT_FORMAT_VERSION
 from .assembly import write_assembly_pdf
 from .client_preview import write_client_preview
 from .pdf import write_print_pdf, write_spec_pdf
+from .print_ready import PrintProfile, write_print_ready
 from .svg import write_svg
 
 DIRS = ["source", "project", "preview", "print", "palette", "production", "quality"]
@@ -99,6 +100,10 @@ def build_package(res, out_root: str | Path, photo: str | Path, force: bool = Fa
             pinfo = write_print_pdf(tmp / "print/canvas_outline.pdf", res.geom, res.spots, res.px_per_mm,
                                     res.width_mm, res.height_mm, res.line_mm, title)
             rec("print/canvas_outline.pdf", "pdf", **pinfo)
+            if s.extra.get("print_profile") is not None:
+                pr = write_print_ready(tmp / "print/print_ready", res, PrintProfile.from_dict(s.extra["print_profile"]))
+                for name, info in pr.items():
+                    rec(f"print/print_ready/{name}", Path(name).suffix.lstrip(".") or "file", **info)
             _write_csv(tmp / "palette/paint_list.csv", res.spec)
             rec("palette/paint_list.csv", "csv")
             meta = {"order_number": s.order_number, "project_name": s.project_name, "width_mm": res.width_mm,

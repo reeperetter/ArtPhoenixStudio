@@ -56,6 +56,16 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--skip-existing", action="store_true", help="пакетна обробка: пропускати вже готові замовлення")
     ap.add_argument("--purchase-list", metavar="ПАПКА", default=None,
                     help="зібрати загальний список закупівлі фарб з готових замовлень (order_*) у папці; потрібен каталог фарб")
+    g = ap.add_argument_group("експорт для друку (print/print_ready/)")
+    g.add_argument("--print-ready", action="store_true", help="створити файли для друку: PDF із припуском і мітками, растр, аркуші")
+    g.add_argument("--print-profile", metavar="ФАЙЛ", default=None, help="JSON-профіль друку (поля як у --print-*)")
+    g.add_argument("--print-bleed", type=float, default=None, help="припуск (bleed), мм; типово 5")
+    g.add_argument("--print-wrap", type=float, default=None, help="поле під загин на підрамник з кожного боку, мм; типово 0")
+    g.add_argument("--print-dpi", type=int, default=None, help="роздільна здатність растру; типово 300")
+    g.add_argument("--print-format", choices=["tiff", "png", "none"], default=None, help="формат растру; типово tiff")
+    g.add_argument("--print-tiles", default=None, help="розбити на аркуші: A4, A3, A2 або ШxВ у мм")
+    g.add_argument("--print-overlap", type=float, default=None, help="перекриття аркушів, мм; типово 10")
+    g.add_argument("--print-no-marks", action="store_true", help="без міток різу та службового рядка")
     ap.add_argument("--store-name", default="", help="назва магазину в макеті попереднього перегляду для клієнта")
     ap.add_argument("--kit-items", metavar="ФАЙЛ", default=None,
                     help="JSON зі складом комплекту для листа складання: [{\"name\": \"Пензлик\", \"qty\": 3}, …]")
@@ -104,6 +114,21 @@ def main(argv: list[str] | None = None) -> int:
             extra["kit_items"] = load_kit_items(a.kit_items)
         except (ValueError, OSError) as e:
             print(f"Помилка у складі комплекту: {e}", file=sys.stderr)
+            return 2
+    pp_args = (a.print_profile, a.print_bleed, a.print_wrap, a.print_dpi, a.print_format, a.print_tiles, a.print_overlap)
+    if a.print_ready or any(v is not None for v in pp_args) or a.print_no_marks:
+        from .export.print_ready import PrintError, PrintProfile, load_profile
+        try:
+            prof = load_profile(a.print_profile).to_dict() if a.print_profile else PrintProfile().to_dict()
+            for key, val in (("bleed_mm", a.print_bleed), ("wrap_mm", a.print_wrap), ("dpi", a.print_dpi),
+                             ("raster_format", a.print_format), ("tiles", a.print_tiles), ("tile_overlap_mm", a.print_overlap)):
+                if val is not None:
+                    prof[key] = val
+            if a.print_no_marks:
+                prof["marks"] = False
+            extra["print_profile"] = PrintProfile.from_dict(prof).to_dict()
+        except (PrintError, OSError) as e:
+            print(f"Помилка в параметрах друку: {e}", file=sys.stderr)
             return 2
     s = Settings(extra=extra, catalog=catalog, catalog_select=not a.catalog_snap, catalog_max_de2000=a.catalog_max_de, mode=a.mode, n_colors=a.colors, width_mm=a.width_mm, height_mm=a.height_mm,
                  px_per_mm=a.px_per_mm, seed=a.seed, order_number=a.order, project_name=a.name,

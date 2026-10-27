@@ -56,15 +56,22 @@ def _register_font() -> tuple[str, str, bool]:
     return "Helvetica", "Helvetica-Bold", False
 
 
-def write_print_pdf(path: str | Path, geom: Geometry, spots: list[NumberSpot], px_per_mm: float,
-                    width_mm: float, height_mm: float, line_mm: float, title: str) -> dict:
-    """Сторінка дорівнює полотну: 1 одиниця = 1 мм, без полів і масштабування."""
+def font_file() -> str | None:
+    """Шлях до звичайного TTF-шрифта, яким друкуються номери (той самий, що вбудовується в PDF)."""
+    env = os.environ.get("PBN_FONT")
+    for _name, reg, _bold in ([("PBN-Sans", env, env)] if env else []) + _FONT_CANDIDATES:
+        if reg and Path(reg).exists():
+            return reg
+    return None
+
+
+def draw_artwork(c, geom: Geometry, spots: list[NumberSpot], px_per_mm: float, height_mm: float, line_mm: float,
+                 font: str, ox_mm: float = 0.0, oy_mm: float = 0.0) -> int:
+    """Малює контури й номери на сторінці PDF; (ox_mm, oy_mm) --- зсув лівого нижнього кута полотна на сторінці.
+    Повертає кількість надрукованих номерів."""
     s = 1.0 / px_per_mm
-    font, _, _ = _register_font()          # шрифт вбудовується у файл (розділ 12.4 ТЗ)
-    c = canvas.Canvas(str(path), pagesize=(width_mm * mm, height_mm * mm), pageCompression=1,
-                      initialFontName=font)
-    c.setTitle(title)
-    c.setCreator("paint-by-numbers")
+    c.saveState()
+    c.translate(ox_mm * mm, oy_mm * mm)
     c.setLineWidth(line_mm * mm)
     c.setLineCap(1)
     c.setLineJoin(1)
@@ -94,6 +101,19 @@ def write_print_pdf(path: str | Path, geom: Geometry, spots: list[NumberSpot], p
         c.setFont(font, h_mm / CAP_HEIGHT_EM * mm)
         c.drawCentredString(sp.x * s * mm, (height_mm - sp.y * s - h_mm / 2) * mm, str(sp.number))
         n += 1
+    c.restoreState()
+    return n
+
+
+def write_print_pdf(path: str | Path, geom: Geometry, spots: list[NumberSpot], px_per_mm: float,
+                    width_mm: float, height_mm: float, line_mm: float, title: str) -> dict:
+    """Сторінка дорівнює полотну: 1 одиниця = 1 мм, без полів і масштабування."""
+    font, _, _ = _register_font()          # шрифт вбудовується у файл (розділ 12.4 ТЗ)
+    c = canvas.Canvas(str(path), pagesize=(width_mm * mm, height_mm * mm), pageCompression=1,
+                      initialFontName=font)
+    c.setTitle(title)
+    c.setCreator("paint-by-numbers")
+    n = draw_artwork(c, geom, spots, px_per_mm, height_mm, line_mm, font)
     c.showPage()
     c.save()
     return {"width_mm": width_mm, "height_mm": height_mm, "numbers": n, "font_embedded": font != "Helvetica"}

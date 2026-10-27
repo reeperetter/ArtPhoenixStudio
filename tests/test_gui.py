@@ -497,3 +497,28 @@ def test_window_manual_region_editing(tmp_path, monkeypatch):
     w.generate()
     assert w.res is r and w.job is None
     w.close()
+
+
+def test_print_profile_dialog_and_prefs(tmp_path):
+    from PySide6.QtWidgets import QApplication
+    from paint_by_numbers.gui.main_window import MainWindow
+    from paint_by_numbers.gui.print_dialog import PrintProfileDialog
+    app = QApplication.instance() or QApplication([])
+    d = PrintProfileDialog(None)
+    assert d.profile() is None                                   # типово вимкнено
+    d.cb_on.setChecked(True)
+    d.sp_bleed.setValue(3)
+    d.sp_wrap.setValue(25)
+    d.cmb_tiles.setCurrentIndex(d.cmb_tiles.findData("A3"))
+    d.cmb_fmt.setCurrentIndex(d.cmb_fmt.findData("png"))
+    p = d.profile()
+    assert (p["bleed_mm"], p["wrap_mm"], p["tiles"], p["raster_format"]) == (3.0, 25.0, "A3", "png")
+    assert PrintProfileDialog(p).profile() == p                  # діалог відновлює профіль без втрат
+    ini = str(tmp_path / "prefs.ini")
+    w = MainWindow(Prefs(ini))
+    w.print_profile = p
+    assert w.make_settings().extra["print_profile"] == p
+    w._save_prefs()
+    w2 = MainWindow(Prefs(ini))
+    assert w2.print_profile == p and "A3" in w2.lbl_print.text()
+    w.close(); w2.close()

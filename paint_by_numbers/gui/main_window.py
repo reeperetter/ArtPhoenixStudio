@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QButtonGroup, QCheckBox, QComb
 from ..compare import default_variants, select_best
 from ..generate import run_pipeline
 from ..export.package import build_package
+from ..export.print_ready import PrintProfile
 from ..image_io.loader import load_image
 from ..palette.catalog import CatalogError, load_catalog
 from ..project import ProjectError, open_project
@@ -26,6 +27,7 @@ from ..settings import PRESETS, Settings
 from .canvas_view import ImageView, ZoneCanvas
 from .batch_dialog import BatchDialog
 from .history import UndoStack
+from .print_dialog import PrintProfileDialog
 from .region_editor import RegionEditPanel
 from ..edit import EditError, Segmentation, add_color, merge_into, paint_polygon, rebuild_result, recolor_region
 from .prefs import Prefs
@@ -230,6 +232,12 @@ class MainWindow(QMainWindow):
         self.ed_store = QLineEdit()
         self.ed_store.setPlaceholderText("для макета клієнта (необов'язково)")
         f.addRow("Назва магазину", self.ed_store)
+        self.print_profile: dict | None = None
+        self.btn_print = QPushButton("Параметри друку…")
+        self.btn_print.setToolTip("Припуск, загортання на підрамник, мітки різу, растр, розбиття на аркуші A4/A3")
+        self.btn_print.clicked.connect(self.edit_print_profile)
+        self.lbl_print = QLabel("файли для друку: вимкнено")
+        f.addRow(self.btn_print, self.lbl_print)
         self.btn_save = QPushButton("Зберегти пакет…")
         self.btn_save.clicked.connect(self.save_package)
         self.progress = QProgressBar(maximumHeight=10, textVisible=False)
@@ -538,6 +546,27 @@ class MainWindow(QMainWindow):
         self.lbl_cat.setText("каталог не задано (коди P-001…)")
         self._invalidate()
 
+    # ------------------------------------------------------------------ друк
+    def _extra(self) -> dict:
+        extra = {}
+        if self.ed_store.text().strip():
+            extra["store_name"] = self.ed_store.text().strip()
+        if self.print_profile is not None:
+            extra["print_profile"] = dict(self.print_profile)
+        return extra
+
+    def _show_print_profile(self) -> None:
+        p = self.print_profile
+        self.lbl_print.setText("файли для друку: вимкнено" if p is None else
+                               f"bleed {p['bleed_mm']:g}, загин {p['wrap_mm']:g} мм, {p['dpi']} dpi"
+                               + (f", {p['tiles']}" if p["tiles"] else ""))
+
+    def edit_print_profile(self) -> None:
+        dlg = PrintProfileDialog(self.print_profile, self)
+        if dlg.exec():
+            self.print_profile = dlg.profile()
+            self._show_print_profile()
+
     # ------------------------------------------------------------------ генерація та збереження
     def make_settings(self) -> Settings:
         parse_zones(self.zones)               # ZoneError --- зрозуміле повідомлення
@@ -549,7 +578,7 @@ class MainWindow(QMainWindow):
             order_number=self.ed_order.text().strip() or "000001", project_name=self.ed_name.text().strip(),
             coverage_mm2_per_container=self.sp_cov.value() or None, safety_factor=self.sp_k.value(),
             coverage_confirmed=self.cb_cov_ok.isChecked(), zones=copy.deepcopy(self.zones), catalog=list(self.catalog),
-            extra={"store_name": self.ed_store.text().strip()} if self.ed_store.text().strip() else {})
+            extra=self._extra())
 
     def _busy(self, on: bool, text: str = "") -> None:
         self.progress.setRange(0, 0 if on else 1)
@@ -752,6 +781,10 @@ class MainWindow(QMainWindow):
         res, photo = self.res, self.photo
         res.settings.order_number = self.ed_order.text().strip() or "000001"
         res.settings.project_name = self.ed_name.text().strip()
+        kit = res.settings.extra.get("kit_items")
+        res.settings.extra = self._extra()          # назва магазину й параметри друку беруться з поточних полів
+        if kit:
+            res.settings.extra["kit_items"] = kit
         self._busy(True, "Збереження пакета…")
         oname = self.original_name
         self.job = Job(lambda: build_package(res, folder, photo, force=force, original_name=oname), self)
@@ -857,6 +890,12 @@ class MainWindow(QMainWindow):
         for w in widgets:
             w.blockSignals(False)
         self.ed_store.setText(p.get("store_name"))
+        try:
+            raw = p.get("print_profile")
+            self.print_profile = PrintProfile.from_dict(json.loads(raw)).to_dict() if raw else None
+        except Exception:                          # пошкоджене значення в налаштуваннях: друк вимкнено
+            self.print_profile = None
+        self._show_print_profile()
         cat = p.get("catalog_path")
         if cat:
             try:
@@ -880,6 +919,7 @@ class MainWindow(QMainWindow):
         p.set("safety_factor", float(self.sp_k.value()))
         p.set("coverage_confirmed", self.cb_cov_ok.isChecked())
         p.set("store_name", self.ed_store.text().strip())
+        p.set("print_profile", json.dumps(self.print_profile) if self.print_profile is not None else "")
         p.set_geometry(self.saveGeometry())
         p.sync()
 
@@ -928,6 +968,12 @@ class MainWindow(QMainWindow):
         self.ed_order.setText(s.order_number)
         self.ed_name.setText(s.project_name)
         self.ed_store.setText(str(s.extra.get("store_name", "")))
+        pp = s.extra.get("print_profile")
+        try:
+            self.print_profile = PrintProfile.from_dict(pp).to_dict() if pp else None
+        except Exception:
+            self.print_profile = None
+        self._show_print_profile()
         for w in widgets:
             w.blockSignals(False)
         self.catalog = list(s.catalog)
