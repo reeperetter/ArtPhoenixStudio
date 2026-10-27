@@ -113,7 +113,7 @@ def write_client_preview(pdf_path: str | Path, png_path: str | Path, res, origin
         c.rect(x, y - dh - 5 * mm, dw, dh)
         c.setFont(bold, 10)
         c.drawCentredString(m + i * (bw + 8 * mm) + bw / 2, y - 3.5 * mm, cap)
-    y -= bh + 12 * mm
+    y -= bh + 10 * mm
 
     # фрагмент із номерами
     x0, y0, x1, y1 = detail_window(res)
@@ -132,8 +132,10 @@ def write_client_preview(pdf_path: str | Path, png_path: str | Path, res, origin
     c.setFont(bold, 10)
     c.drawString(m, y, t["facts"])
     c.setFont(font, 10)
-    c.drawString(m, y - 5.5 * mm, f'{t["size"]}: {res.width_mm / 10:.0f} × {res.height_mm / 10:.0f} {t["cm"]}   |   '
-                                  f'{t["colors"]}: {tot["paints"]}   |   {t["cont"]}: {tot["containers"]} ({t["per"]})')
+    facts = f'{t["size"]}: {res.width_mm / 10:.0f} × {res.height_mm / 10:.0f} {t["cm"]}   |   {t["colors"]}: {tot["paints"]}'
+    if not spec["calculation"]["provisional"]:           # кількість ємностей показуємо лише після підтвердження норми N
+        facts += f'   |   {t["cont"]}: {tot["containers"]} ({t["per"]})'
+    c.drawString(m, y - 5.5 * mm, facts)
     y -= 12 * mm
     c.setFont(bold, 10)
     c.drawString(m, y, t["palette"])
