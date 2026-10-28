@@ -44,3 +44,20 @@ def saliency_map(bgr: np.ndarray) -> np.ndarray:
     density = cv2.GaussianBlur(mag, (0, 0), 6.0)
     hi = float(np.percentile(density, 95)) or 1.0
     return np.clip(density / hi, 0.0, 1.0)
+
+
+def skin_map(bgr: np.ndarray, min_blob_frac: float = 0.004) -> np.ndarray:
+    """М'яка карта «схоже на шкіру» 0..1 за кольором (YCrCb) --- класичний поріг, без розпізнавання облич.
+    Лишаються лише достатньо великі суцільні плями (обличчя, руки), щоб поодинокі крапки не рахувалися;
+    уздовж країв пляма розмивається. Хибні спрацювання (пісок, дерево) лише додають там деталізації."""
+    ycc = cv2.cvtColor(cv2.GaussianBlur(bgr, (0, 0), 2.0), cv2.COLOR_BGR2YCrCb)
+    y, cr, cb = ycc[..., 0], ycc[..., 1], ycc[..., 2]
+    m = ((cr >= 135) & (cr <= 175) & (cb >= 80) & (cb <= 128) & (y >= 40)).astype(np.uint8)
+    m = cv2.morphologyEx(m, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9)))
+    n, lab, stats, _ = cv2.connectedComponentsWithStats(m, connectivity=8)
+    keep = np.zeros(n, bool)
+    keep[1:] = stats[1:, cv2.CC_STAT_AREA] >= min_blob_frac * m.size
+    m = keep[lab].astype(np.float32)
+    k = max(3, int(min(bgr.shape[:2]) * 0.03)) | 1
+    m = cv2.dilate(m, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (k, k)))      # очі, брови, губи лежать у плямі шкіри
+    return np.clip(cv2.GaussianBlur(m, (0, 0), k / 3.0), 0.0, 1.0)

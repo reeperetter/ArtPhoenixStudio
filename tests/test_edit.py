@@ -70,9 +70,10 @@ def test_rebuild_and_roundtrip(tmp_path):
     res.source_photo, res.original_name = photo, "t.png"
     seg = Segmentation.from_result(res)
     big = int(np.argmax(res.rm.area_px))
-    seg2 = merge_into(seg, big, sorted(seg.neighbors(big))[0])
+    other = next(n for n in sorted(seg.neighbors(big)) if seg.region_color[n] != seg.region_color[big])
+    seg2 = merge_into(seg, big, other)
     res2 = rebuild_result(seg2, res)
-    assert res2.report["manual_edits"] == 1 and len(res2.rm.palette_lab) < len(res.rm.palette_lab)
+    assert res2.report["manual_edits"] == 1 and len(res2.rm.area_px) < len(res.rm.area_px)
     assert res2.report["regions_without_number_room"] == 0
     info = build_package(res2, tmp_path / "out", photo, force=True, original_name="t.png")
     res3 = open_project(info["dir"])

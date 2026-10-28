@@ -30,6 +30,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--seed", type=int, default=12345)
     ap.add_argument("--coverage-mm2", type=float, default=None,
                     help="норма покриття N однієї ємності 3 мл у мм² (виміряна)")
+    ap.add_argument("--detail", type=float, default=1.0, help="деталізація 0.5..3 (більше = дрібніші ділянки й цифри, не менші за 1,6 мм)")
+    ap.add_argument("--no-auto-detail", action="store_true", help="вимкнути автоматичну деталізацію облич і шкіри")
     ap.add_argument("--safety-factor", type=float, default=1.0, help="коефіцієнт запасу K (>=1)")
     ap.add_argument("--coverage-confirmed", action="store_true",
                     help="норму N підтверджено фізичними тестами (інакше розрахунок орієнтовний)")
@@ -90,6 +92,8 @@ def main(argv: list[str] | None = None) -> int:
     a.out = a.out or "out"
     if a.colors is not None and not 4 <= a.colors <= 64:
         ap.error("--colors має бути в межах 4..64")
+    if not 0.5 <= a.detail <= 3.0:
+        ap.error("--detail має бути від 0.5 до 3")
     if a.safety_factor < 1:
         ap.error("--safety-factor має бути >= 1")
     zones = []
@@ -133,7 +137,7 @@ def main(argv: list[str] | None = None) -> int:
     s = Settings(extra=extra, catalog=catalog, catalog_select=not a.catalog_snap, catalog_max_de2000=a.catalog_max_de, mode=a.mode, n_colors=a.colors, width_mm=a.width_mm, height_mm=a.height_mm,
                  px_per_mm=a.px_per_mm, seed=a.seed, order_number=a.order, project_name=a.name,
                  coverage_mm2_per_container=a.coverage_mm2, safety_factor=a.safety_factor,
-                 coverage_confirmed=a.coverage_confirmed, zones=zones, zone_feather_mm=a.zone_feather_mm)
+                 coverage_confirmed=a.coverage_confirmed, detail=a.detail, auto_detail=not a.no_auto_detail, zones=zones, zone_feather_mm=a.zone_feather_mm)
     if a.batch:
         return run_batch_cli(a, s)
     if a.preview_zones:

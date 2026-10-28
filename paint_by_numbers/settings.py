@@ -47,6 +47,9 @@ class Settings:
     catalog: list = field(default_factory=list)       # каталог фарб (palette/catalog.py); порожній -> без підбору
     catalog_select: bool = True                       # квантування одразу з кольорів каталогу (False: K-Means, потім підбір фарб)
     catalog_max_de2000: float = 10.0                  # гіпотеза: далі за цей поріг колір фарби помітно відрізняється
+    detail: float = 1.0                               # множник деталізації 0.5..3: більше = дрібніші ділянки й вужчі деталі
+    auto_detail: bool = True                          # автоматична деталізація шкіри/облич (кольоровий поріг, без ШІ)
+    auto_detail_strength: float = 1.0                 # вага автозони, як у ручної зони (0..2)
     extra: dict = field(default_factory=dict)
 
     @property

@@ -20,13 +20,14 @@ from .geometry.planar import Geometry, build_geometry
 from .image_io.loader import load_image
 from .palette.specification import compute_spec
 from .pipeline.color_quantization import quantize
-from .pipeline.preprocess import denoise_zoned, saliency_map, to_lab
+from .pipeline.preprocess import denoise_zoned, saliency_map, skin_map, to_lab
 from .pipeline.priority_zones import ZoneMaps, parse_zones, rasterize
 from .pipeline.regions import RegionMap, connected_regions, merge_small_regions, remove_protrusions
 from .quality import warnings as qw
 from .settings import ALGORITHM_VERSION, Settings
 
 PREVIEW_SCALE = 2
+MIN_DIGIT_FLOOR_MM = 1.6       # менших цифр читати вже неможливо навіть із деталізацією
 MAX_NARROW_PASSES = 6
 MAX_FINAL_PASSES = 5
 KEEP_CONTRAST = 20.0    # вузька ділянка з контрастом (ΔE76) вище цього лишається та потрапляє у звіт
@@ -77,6 +78,10 @@ def run_pipeline(photo: str | Path, settings: Settings, restored: dict | None = 
     zmaps = build_zone_maps(settings, img)
     zw = zmaps.weight if zmaps else None
     unit = zmaps.unit if zmaps else None
+    if settings.auto_detail and settings.auto_detail_strength > 0:
+        auto = skin_map(img.bgr)                                   # шкіра/обличчя отримують більше кольорів і дрібніші ділянки
+        zw = auto * settings.auto_detail_strength if zw is None else np.maximum(zw, auto * settings.auto_detail_strength)
+        unit = auto if unit is None else np.maximum(unit, auto)
     _lab: list = []
 
     def get_lab() -> np.ndarray:             # знебарвлена Lab потрібна лише для злиттів (дорогий крок обчислюється ліниво)
@@ -91,8 +96,9 @@ def run_pipeline(photo: str | Path, settings: Settings, restored: dict | None = 
         sal = np.maximum(sal, unit)          # зона пріоритету = максимальна значущість
     lap("preprocess")
     k = settings.colors
-    base_min_px = p.min_area_mm2 * ppm * ppm
-    min_digit_px = p.min_digit_mm * ppm
+    dt = min(max(float(settings.detail), 0.5), 3.0)
+    base_min_px = p.min_area_mm2 * ppm * ppm / (dt * dt)       # деталізація зменшує мінімальну площу ділянки
+    min_digit_px = max(p.min_digit_mm / dt, MIN_DIGIT_FLOOR_MM) * ppm      # дрібніші цифри = дрібніші ділянки (межа друку)
     max_digit_px = min_digit_px * 1.6
     line_px = p.line_mm * ppm
     # найменша площа, у яку ще поміщається номер (2 цифри, якщо кольорів більше 9)
@@ -118,7 +124,7 @@ def run_pipeline(photo: str | Path, settings: Settings, restored: dict | None = 
                                  fixed_palette=centers if exact else None)
         lap("merge")
         # вузькі виступи й перемички вужчі за мінімальну ширину (розділ 8.3 ТЗ), далі повторне об'єднання
-        L1 = remove_protrusions(rm.labels, 0.5 * p.min_width_mm * ppm, sal,
+        L1 = remove_protrusions(rm.labels, 0.5 * p.min_width_mm * ppm / dt, sal,
                                 protect=None if unit is None else unit > 0.3)
         if L1 is not rm.labels:
             cl, cc = connected_regions(rm.color[L1], len(rm.palette_lab))

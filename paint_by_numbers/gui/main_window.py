@@ -150,10 +150,17 @@ class MainWindow(QMainWindow):
         self.sp_cov.setSpecialValueText("не задано")
         self.sp_k = QDoubleSpinBox(minimum=1.0, maximum=10.0, value=1.3, singleStep=0.1, decimals=2)
         self.cb_cov_ok = QCheckBox("норму N підтверджено фізичними тестами")
+        self.sp_detail = QDoubleSpinBox(minimum=0.5, maximum=3.0, value=1.0, singleStep=0.1, decimals=2)
+        self.sp_detail.setToolTip("Більше = дрібніші ділянки й цифри (цифри не менші за 1,6 мм). 1,0 = за режимом.\n"
+                                  "Перевіряйте читабельність цифр на пробному друку.")
+        self.cb_auto_detail = QCheckBox("автоматично деталізувати обличчя й шкіру")
+        self.cb_auto_detail.setChecked(True)
         f.addRow(row)
         f.addRow(self.lbl_cat)
         f.addRow("Покриття N однієї ємності", self.sp_cov)
         f.addRow("Коефіцієнт запасу K", self.sp_k)
+        f.addRow("Деталізація", self.sp_detail)
+        f.addRow(self.cb_auto_detail)
         f.addRow(self.cb_cov_ok)
         lv.addWidget(g)
 
@@ -333,9 +340,9 @@ class MainWindow(QMainWindow):
         split.setStretchFactor(1, 1)
         split.setHandleWidth(7)
 
-        for w in (self.sp_w, self.sp_h, self.sp_colors, self.sp_cov, self.sp_k):
+        for w in (self.sp_w, self.sp_h, self.sp_colors, self.sp_cov, self.sp_k, self.sp_detail):
             w.valueChanged.connect(self._invalidate)
-        for w in (self.cb_auto_h, self.cb_auto_colors, self.cb_cov_ok):
+        for w in (self.cb_auto_h, self.cb_auto_colors, self.cb_cov_ok, self.cb_auto_detail):
             w.toggled.connect(self._invalidate)
         self.cmb_mode.currentIndexChanged.connect(self._invalidate)
 
@@ -623,7 +630,8 @@ class MainWindow(QMainWindow):
             height_mm=None if self.cb_auto_h.isChecked() else self.sp_h.value(),
             order_number=self.ed_order.text().strip() or "000001", project_name=self.ed_name.text().strip(),
             coverage_mm2_per_container=self.sp_cov.value() or None, safety_factor=self.sp_k.value(),
-            coverage_confirmed=self.cb_cov_ok.isChecked(), zones=copy.deepcopy(self.zones), catalog=list(self.catalog),
+            coverage_confirmed=self.cb_cov_ok.isChecked(), detail=self.sp_detail.value(),
+            auto_detail=self.cb_auto_detail.isChecked(), zones=copy.deepcopy(self.zones), catalog=list(self.catalog),
             extra=self._extra())
 
     def _busy(self, on: bool, text: str = "") -> None:
@@ -928,7 +936,7 @@ class MainWindow(QMainWindow):
     def _load_prefs(self) -> None:
         p = self.prefs
         widgets = (self.sp_w, self.sp_h, self.cmb_mode, self.cb_auto_h, self.cb_auto_colors, self.sp_colors,
-                   self.sp_cov, self.sp_k, self.cb_cov_ok)
+                   self.sp_cov, self.sp_k, self.cb_cov_ok, self.sp_detail, self.cb_auto_detail)
         for w in widgets:
             w.blockSignals(True)
         self.sp_w.setValue(p.get("width_mm"))
@@ -942,6 +950,8 @@ class MainWindow(QMainWindow):
         self.sp_cov.setValue(p.get("coverage_mm2"))
         self.sp_k.setValue(p.get("safety_factor"))
         self.cb_cov_ok.setChecked(p.get("coverage_confirmed"))
+        self.sp_detail.setValue(p.get("detail"))
+        self.cb_auto_detail.setChecked(p.get("auto_detail"))
         for w in widgets:
             w.blockSignals(False)
         self.ed_store.setText(p.get("store_name"))
@@ -973,6 +983,8 @@ class MainWindow(QMainWindow):
         p.set("coverage_mm2", float(self.sp_cov.value()))
         p.set("safety_factor", float(self.sp_k.value()))
         p.set("coverage_confirmed", self.cb_cov_ok.isChecked())
+        p.set("detail", float(self.sp_detail.value()))
+        p.set("auto_detail", self.cb_auto_detail.isChecked())
         p.set("store_name", self.ed_store.text().strip())
         p.set("print_profile", json.dumps(self.print_profile) if self.print_profile is not None else "")
         p.set_geometry(self.saveGeometry())
@@ -1006,7 +1018,7 @@ class MainWindow(QMainWindow):
     def _project_opened(self, res) -> None:
         s = res.settings
         widgets = (self.sp_w, self.sp_h, self.cmb_mode, self.cb_auto_h, self.cb_auto_colors, self.sp_colors,
-                   self.sp_cov, self.sp_k, self.cb_cov_ok, self.ed_order, self.ed_name)
+                   self.sp_cov, self.sp_k, self.cb_cov_ok, self.sp_detail, self.cb_auto_detail, self.ed_order, self.ed_name)
         for w in widgets:
             w.blockSignals(True)
         self.sp_w.setValue(s.width_mm)
@@ -1020,6 +1032,8 @@ class MainWindow(QMainWindow):
         self.sp_cov.setValue(s.coverage_mm2_per_container or 0)
         self.sp_k.setValue(s.safety_factor)
         self.cb_cov_ok.setChecked(bool(s.coverage_confirmed))
+        self.sp_detail.setValue(s.detail)
+        self.cb_auto_detail.setChecked(bool(s.auto_detail))
         self.ed_order.setText(s.order_number)
         self.ed_name.setText(s.project_name)
         self.ed_store.setText(str(s.extra.get("store_name", "")))
