@@ -1,6 +1,7 @@
 [project]
 name = "paint-by-numbers"
 version = "0.1.0"
+authors = [{ name = "reeperetter" }]
 description = "Автоматичне створення картин за номерами з фотографій (без ШІ)"
 readme = "README.md"
 requires-python = ">=3.12"

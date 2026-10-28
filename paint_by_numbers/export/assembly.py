@@ -71,7 +71,7 @@ def write_assembly_pdf(path: str | Path, spec: dict, meta: dict, kit_items: list
                                "All containers closed, color matches", "Container counts match the table",
                                "Order number on box and palette sheet match"]
     doc = SimpleDocTemplate(str(path), pagesize=A4, leftMargin=15 * mm, rightMargin=15 * mm, topMargin=14 * mm,
-                            bottomMargin=14 * mm, title=t["title"], author="paint-by-numbers")
+                            bottomMargin=14 * mm, title=t["title"], author="reeperetter")
     h1 = ParagraphStyle("h1", fontName=bold, fontSize=17, leading=22, spaceAfter=4)
     h2 = ParagraphStyle("h2", fontName=bold, fontSize=11, spaceBefore=8, spaceAfter=3)
     nm = ParagraphStyle("nm", fontName=font, fontSize=10, leading=13)

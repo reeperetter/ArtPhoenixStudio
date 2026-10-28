@@ -587,7 +587,7 @@ class MainWindow(QMainWindow):
     def show_about(self) -> None:
         from ..settings import ALGORITHM_VERSION
         QMessageBox.about(self, "Про програму",
-                          f"<b>Картини за номерами</b><br>Версія алгоритму {ALGORITHM_VERSION}<br><br>"
+                          f"<b>Картини за номерами</b><br>Версія алгоритму {ALGORITHM_VERSION}<br>Автор: reeperetter<br><br>"
                           "Перетворює фото на виробничий пакет: контури з номерами, специфікація фарб, файли для друку.<br>"
                           "Усі обчислення виконуються на цьому комп'ютері класичними алгоритмами, без штучного інтелекту й без інтернету.")
 

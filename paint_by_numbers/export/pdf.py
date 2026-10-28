@@ -143,7 +143,7 @@ def write_spec_pdf(path: str | Path, spec: dict, meta: dict, warnings: list[dict
     font, bold, cyr = _register_font()
     t = _L["uk" if cyr else "en"]
     doc = SimpleDocTemplate(str(path), pagesize=A4, leftMargin=15 * mm, rightMargin=15 * mm,
-                            topMargin=15 * mm, bottomMargin=15 * mm, title=t["title"], author="paint-by-numbers")
+                            topMargin=15 * mm, bottomMargin=15 * mm, title=t["title"], author="reeperetter")
     h1 = ParagraphStyle("h1", fontName=bold, fontSize=16, spaceAfter=4)
     nm = ParagraphStyle("nm", fontName=font, fontSize=9.5, leading=13)
     small = ParagraphStyle("sm", fontName=font, fontSize=8.5, leading=11, textColor=colors.HexColor("#444444"))

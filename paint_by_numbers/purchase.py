@@ -228,7 +228,7 @@ def write_pdf(data: dict, path: str | Path) -> None:
               bulk="Bulk {b:g} ml, pcs", excl="Excluded", conf="Warning: code has different colors across orders",
               date="Date"))
     doc = SimpleDocTemplate(str(path), pagesize=A4, leftMargin=15 * mm, rightMargin=15 * mm, topMargin=15 * mm,
-                            bottomMargin=15 * mm, title=T["title"], author="paint-by-numbers")
+                            bottomMargin=15 * mm, title=T["title"], author="reeperetter")
     h1 = ParagraphStyle("h1", fontName=bold, fontSize=16, spaceAfter=4)
     nm = ParagraphStyle("nm", fontName=font, fontSize=9.5, leading=13)
     warn = ParagraphStyle("w", fontName=bold, fontSize=10, textColor=colors.HexColor("#C00000"), spaceAfter=4)
