@@ -16,7 +16,7 @@ datas = [
 ]
 datas += collect_data_files("skimage")
 hidden = (collect_submodules("paint_by_numbers") + collect_submodules("sklearn.utils")
-          + collect_submodules("skimage.metrics") + ["scipy.special._cdflib", "sklearn.neighbors._partition_nodes"])
+          + collect_submodules("skimage.metrics") + ["sklearn.neighbors._partition_nodes"])
 excludes = ["tkinter", "matplotlib", "IPython", "pytest", "cairosvg", "PyQt5", "PyQt6", "PySide2",
             "PySide6.QtWebEngineCore", "PySide6.QtWebEngineWidgets", "PySide6.Qt3DCore", "PySide6.QtQuick",
             "PySide6.QtQml", "PySide6.QtMultimedia", "PySide6.QtCharts", "PySide6.QtDataVisualization"]
