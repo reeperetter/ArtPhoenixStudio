@@ -138,7 +138,7 @@ class MainWindow(QMainWindow):
         self.btn_cat.clicked.connect(self.load_catalog_file)
         self.btn_cat_clear = QPushButton("Скинути")
         self.btn_cat_clear.clicked.connect(self.clear_catalog)
-        self.btn_cat_starter = QPushButton("Стартова (36)")
+        self.btn_cat_starter = QPushButton("Стартова (100)")
         self.btn_cat_starter.setToolTip("Вбудована ЧЕРНЕТКА складської палітри для портретів (кольори екрана, не реальні фарби)")
         self.btn_cat_starter.clicked.connect(self.load_starter_palette)
         row.addWidget(self.btn_cat)
