@@ -45,8 +45,8 @@ def test_bad_catalog(bad):
 
 def test_bundled_starter_palette():
     from paint_by_numbers.palette.catalog import load_catalog
-    cat = load_catalog("starter_48")
-    assert len(cat) == 48 and len({c["code"] for c in cat}) == 48
+    cat = load_catalog("starter_100")
+    assert len(cat) == 100 and len({c["code"] for c in cat}) == 100
 
 
 def test_select_from_stock_deterministic_and_close():
@@ -71,7 +71,7 @@ def test_pipeline_uses_exact_stock_colors(tmp_path):
     cv2.circle(img, (140, 100), 60, (60, 90, 210), -1)
     img = np.clip(img.astype(int) + rng.integers(-8, 8, img.shape), 0, 255).astype(np.uint8)
     cv2.imwrite(str(tmp_path / "t.png"), img)
-    cat = load_catalog("starter_48")
+    cat = load_catalog("starter_100")
     res = generate(str(tmp_path / "t.png"), Settings(width_mm=100.0, n_colors=8, catalog=cat, order_number="x"),
                    tmp_path / "o", force=True)
     stock = np.array([c["lab"] for c in cat])
