@@ -291,7 +291,11 @@ class MainWindow(QMainWindow):
         right = QWidget()
         rv = QVBoxLayout(right)
         rv.setContentsMargins(0, 0, 0, 0)
-        rv.addWidget(self.tabs, 4)
+        self.split_v = QSplitter(Qt.Orientation.Vertical)           # розділювач між переглядом і специфікацією
+        self.split_v.setChildrenCollapsible(False)
+        self.split_v.setHandleWidth(7)
+        self.split_v.addWidget(self.tabs)
+        rv.addWidget(self.split_v)
         self.tbl = QTableWidget(0, 8)
         self.tbl.setHorizontalHeaderLabels(["№", "Колір", "Код", "Назва", "Площа, мм²", "Ділянок", "Ємностей", "мл"])
         self.tbl.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
@@ -313,9 +317,20 @@ class MainWindow(QMainWindow):
         bottom.addTab(self.lst_warn, "Попередження")
         bottom.addTab(self.tbl_var, "Варіанти")
         self.bottom = bottom
-        rv.addWidget(bottom, 2)
+        self.split_v.addWidget(bottom)
+        self.split_v.setStretchFactor(0, 4)
+        self.split_v.setStretchFactor(1, 2)
+        self.split_v.setSizes([600, 300])
+        try:                                                        # відновлюємо збережену пропорцію
+            sizes = [int(v) for v in self.prefs.get("split_sizes").split(",")]
+            if len(sizes) == 2 and all(v > 30 for v in sizes):
+                self.split_v.setSizes(sizes)
+        except ValueError:
+            pass
+        self.split_v.splitterMoved.connect(lambda *_: self.prefs.set("split_sizes", ",".join(str(v) for v in self.split_v.sizes())))
         split.addWidget(right)
         split.setStretchFactor(1, 1)
+        split.setHandleWidth(7)
 
         for w in (self.sp_w, self.sp_h, self.sp_colors, self.sp_cov, self.sp_k):
             w.valueChanged.connect(self._invalidate)

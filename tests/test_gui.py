@@ -592,3 +592,24 @@ def test_wheel_zoom_keeps_point_under_cursor(kind):
         _wheel(v, 250, 190, -120)
     assert v.transform().m11() >= v.ZOOM_MIN - 1e-6
     v.close()
+
+
+def test_splitter_between_view_and_spec_is_draggable_and_remembered(tmp_path):
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QApplication, QSplitter
+    from paint_by_numbers.gui.main_window import MainWindow
+    app = QApplication.instance() or QApplication([])
+    ini = str(tmp_path / "s.ini")
+    w = MainWindow(Prefs(ini))
+    w.resize(1200, 900)
+    w.show()
+    app.processEvents()
+    assert isinstance(w.split_v, QSplitter) and w.split_v.orientation() == Qt.Orientation.Vertical
+    assert w.split_v.widget(0) is w.tabs and w.split_v.widget(1) is w.bottom
+    w.split_v.moveSplitter(200, 1)
+    app.processEvents()
+    assert abs(w.split_v.sizes()[0] - 200) <= 3
+    w.close()
+    w2 = MainWindow(Prefs(ini))
+    assert 150 < w2.split_v.sizes()[0] < 260 and w2.split_v.sizes()[0] < w2.split_v.sizes()[1]
+    w2.close()
