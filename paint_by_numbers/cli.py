@@ -35,7 +35,7 @@ def main(argv: list[str] | None = None) -> int:
                     help="норму N підтверджено фізичними тестами (інакше розрахунок орієнтовний)")
     ap.add_argument("--zones", default=None, help="JSON-файл із зонами пріоритету (обличчя, очі тощо)")
     ap.add_argument("--zone-feather-mm", type=float, default=2.0, help="ширина м'якого краю зони, мм")
-    ap.add_argument("--catalog", default=None, help="JSON-каталог фарб (склад) або імʼя вбудованої палітри, напр. starter_36; кольори набору вибираються зі складу")
+    ap.add_argument("--catalog", default=None, help="JSON-каталог фарб (склад) або імʼя вбудованої палітри, напр. starter_48; кольори набору вибираються зі складу")
     ap.add_argument("--catalog-snap", action="store_true",
                     help="старий режим: спершу вільний K-Means, потім підбір найближчих фарб (типово кольори вибираються одразу зі складу)")
     ap.add_argument("--catalog-max-de", type=float, default=10.0, help="поріг ΔE2000 для попередження CAT_FAR")

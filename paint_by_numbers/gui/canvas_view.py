@@ -29,7 +29,7 @@ class ImageView(QGraphicsView):
         self._pix.setTransformationMode(Qt.TransformationMode.SmoothTransformation)
         self._scene.addItem(self._pix)
         self.setDragMode(QGraphicsView.DragMode.NoDrag)      # переміщення реалізовано вручну (_pan_*)
-        self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
+        self.setTransformationAnchor(QGraphicsView.ViewportAnchor.NoAnchor)     # масштаб навколо курсора рахуємо самі
         self.viewport().setCursor(QCursor(Qt.CursorShape.OpenHandCursor))
         self._panning = False
         self._pan_last = QPointF()
@@ -56,9 +56,25 @@ class ImageView(QGraphicsView):
         if self._has_image:
             self.fitInView(QRectF(0, 0, self.img_w, self.img_h), Qt.AspectRatioMode.KeepAspectRatio)
 
+    ZOOM_MIN, ZOOM_MAX = 0.02, 60.0            # межі масштабу (пікселів екрана на піксель зображення)
+
     def wheelEvent(self, e):
-        f = 1.25 if e.angleDelta().y() > 0 else 0.8
+        """Масштаб колесом навколо курсора: точка зображення під курсором лишається на місці. Не покладаємось на
+        AnchorUnderMouse: Qt бере для нього останню подію миші, що збивається, коли mouseMoveEvent перевизначено."""
+        dy = e.angleDelta().y()
+        if not self._has_image or dy == 0:
+            return
+        f = 1.25 ** (dy / 120.0)
+        cur = self.transform().m11()
+        f = min(max(cur * f, self.ZOOM_MIN), self.ZOOM_MAX) / cur
+        if abs(f - 1.0) < 1e-9:
+            return
+        pos = e.position().toPoint()
+        before = self.mapToScene(pos)
         self.scale(f, f)
+        after = self.mapToScene(pos)
+        self.translate(after.x() - before.x(), after.y() - before.y())
+        e.accept()
 
     # ---- переміщення: ліва кнопка в режимі «рука» (або завжди середня кнопка), подвійний клік --- вмістити
     def _pan_mode(self) -> bool:

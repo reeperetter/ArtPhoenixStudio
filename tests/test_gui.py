@@ -550,3 +550,45 @@ def test_help_dialog_sections_and_search(tmp_path):
     w.tabs.setCurrentWidget(w.edit_panel)
     assert w._help_section() == "Ручне редагування"
     w.close()
+
+
+def _wheel(view, x, y, dy):
+    from PySide6.QtCore import QPoint, QPointF, Qt
+    from PySide6.QtGui import QWheelEvent
+    pos = QPointF(x, y)
+    ev = QWheelEvent(pos, view.viewport().mapToGlobal(pos), QPoint(0, 0), QPoint(0, dy), Qt.MouseButton.NoButton,
+                     Qt.KeyboardModifier.NoModifier, Qt.ScrollPhase.NoScrollPhase, False)
+    view.wheelEvent(ev)
+
+
+@pytest.mark.parametrize("kind", ["image", "zones"])
+def test_wheel_zoom_keeps_point_under_cursor(kind):
+    from PySide6.QtCore import QPoint, QPointF, Qt
+    from PySide6.QtGui import QMouseEvent
+    from PySide6.QtWidgets import QApplication
+    from paint_by_numbers.gui.canvas_view import ImageView, ZoneCanvas
+    app = QApplication.instance() or QApplication([])
+    v = ImageView() if kind == "image" else ZoneCanvas()
+    v.resize(500, 380)
+    v.show()
+    v.set_image(np.random.default_rng(0).integers(0, 255, (600, 800, 3), dtype=np.uint8))
+    if kind == "zones":
+        v.set_zones([{"name": "з", "shape": "ellipse", "cx": 0.5, "cy": 0.5, "rx": 0.2, "ry": 0.2, "weight": 2.0}], 0)
+        v.set_tool("select")                                                  # mouseMoveEvent перевизначено
+        for pt in ((10, 10), (480, 360), (30, 300)):                          # «заплутуємо» останню подію миші
+            v.mouseMoveEvent(QMouseEvent(QMouseEvent.Type.MouseMove, QPointF(*pt), v.viewport().mapToGlobal(QPointF(*pt)),
+                                         Qt.MouseButton.NoButton, Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier))
+    for _ in range(3):
+        app.processEvents()
+    for (x, y, dy) in ((120, 90, 120), (400, 300, 120), (250, 190, -120), (60, 330, 240), (450, 40, -240), (250, 190, 120)):
+        before = v.mapToScene(QPoint(x, y))
+        _wheel(v, x, y, dy)
+        after = v.mapToScene(QPoint(x, y))
+        assert abs(after.x() - before.x()) < 1.0 and abs(after.y() - before.y()) < 1.0, (x, y, dy, before, after)
+    for _ in range(40):                                  # межі масштабу
+        _wheel(v, 250, 190, 120)
+    assert v.transform().m11() <= v.ZOOM_MAX + 1e-6
+    for _ in range(80):
+        _wheel(v, 250, 190, -120)
+    assert v.transform().m11() >= v.ZOOM_MIN - 1e-6
+    v.close()

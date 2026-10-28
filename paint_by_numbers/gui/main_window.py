@@ -543,12 +543,12 @@ class MainWindow(QMainWindow):
 
     def load_starter_palette(self) -> None:
         try:
-            self.catalog = load_catalog("starter_36")
+            self.catalog = load_catalog("starter_48")
         except (CatalogError, OSError) as e:
             QMessageBox.warning(self, "Вбудована палітра", str(e))
             return
         self.lbl_cat.setText(f"стартова палітра (чернетка): {len(self.catalog)} фарб")
-        self.prefs.set("catalog_path", "starter_36")
+        self.prefs.set("catalog_path", "starter_48")
         self._invalidate()
 
     def clear_catalog(self) -> None:
