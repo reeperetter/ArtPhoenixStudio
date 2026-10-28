@@ -83,6 +83,22 @@ def recolor_region(seg: Segmentation, region: int, color: int) -> Segmentation:
     return _rebuild(rc[seg.labels], seg.palette_lab, seg)
 
 
+def recolor_color(seg: Segmentation, color: int, to: int) -> Segmentation:
+    """Редагування палітри готового малюнка: УСІ ділянки кольору `color` отримують колір `to`.
+    Колір, що лишився без ділянок, зникає з палітри (нумерація кольорів перераховується); якщо `to` ---
+    колір зі складу, якого ще не було, його спершу додають через add_color."""
+    n = len(seg.palette_lab)
+    if not (0 <= color < n and 0 <= to < n):
+        raise EditError("Невідомий колір.")
+    if color == to:
+        raise EditError("Оберіть інший колір: поточний збігається з вибраним.")
+    if not (seg.region_color == color).any():
+        raise EditError("Цей колір не використовується в малюнку.")
+    rc = seg.region_color.copy()
+    rc[rc == color] = to
+    return _rebuild(rc[seg.labels], seg.palette_lab, seg)
+
+
 def merge_into(seg: Segmentation, region: int, into: int) -> Segmentation:
     """Ділянка `region` отримує колір сусідньої `into` і зливається з нею."""
     if region == into:

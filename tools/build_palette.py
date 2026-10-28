@@ -81,6 +81,20 @@ def pooled(corpus: list[np.ndarray], per_image: int = 4000):
     return np.vstack(pts), np.concatenate(w)
 
 
+def gamut_prior(step_l: float = 8.0, step_ab: float = 10.0, max_chroma: float = 60.0) -> np.ndarray:
+    """Рівномірна сітка Lab у межах sRGB: слабкий «апріор», щоб велика палітра не перепідганялася під кілька фото."""
+    g = []
+    for L in np.arange(8.0, 98.0, step_l):
+        for a in np.arange(-60.0, 61.0, step_ab):
+            for b in np.arange(-60.0, 61.0, step_ab):
+                if math.hypot(a, b) <= max_chroma:
+                    g.append([L, a, b])
+    g = np.array(g, np.float32)
+    rgb = cv2.cvtColor(g[None], cv2.COLOR_Lab2BGR)[0]
+    ok = ((rgb > 0.005) & (rgb < 0.995)).all(1)                 # лише колір, що реально є в sRGB
+    return g[ok]
+
+
 def select(points, weights, candidates, fixed, k, passes=6):
     """Обирає k кандидатів, що мінімізують зважену суму min d^2 до {fixed + обрані}."""
     D = ((points[:, None, :] - candidates[None]) ** 2).sum(2)
@@ -126,11 +140,16 @@ def name_color(lab) -> str:
     return f"{light} {hue}"
 
 
-def build(corpus, size: int, seed: int = SEED):
+def build(corpus, size: int, seed: int = SEED, prior: float = 0.0):
+    """prior --- частка ваги, віддана рівномірній сітці гамуту (0 = лише дані корпусу)."""
     pts, w = pooled(corpus)
+    if prior > 0:
+        g = gamut_prior()
+        pts = np.vstack([pts, g])
+        w = np.concatenate([w * (1 - prior) / w.sum(), np.full(len(g), prior / len(g))])
     A = anchors()
     fixed = np.array([c for _, c in A], np.float32)
-    km = KMeans(n_clusters=350, n_init=1, random_state=seed).fit(pts, sample_weight=w)
+    km = KMeans(n_clusters=min(500, max(350, 4 * size)), n_init=1, random_state=seed).fit(pts, sample_weight=w)
     cand = km.cluster_centers_.astype(np.float32)
     # відкидаємо кандидатів, що майже збігаються з якорями
     far = ((cand[:, None] - fixed[None]) ** 2).sum(2).min(1) > 4.0 ** 2
@@ -158,6 +177,7 @@ def main() -> int:
     ap.add_argument("--photos", default=None)
     ap.add_argument("--builtin", action="store_true")
     ap.add_argument("--size", type=int, default=48)
+    ap.add_argument("--prior", type=float, default=0.0, help="частка ваги рівномірної сітки гамуту, 0..0.9")
     ap.add_argument("--prefix", default="ST")
     ap.add_argument("--out", required=True)
     a = ap.parse_args()
@@ -165,7 +185,7 @@ def main() -> int:
     if not corpus:
         print("Порожній корпус: вкажіть --photos і/або --builtin", file=sys.stderr)
         return 2
-    items = build(corpus, a.size)
+    items = build(corpus, a.size, prior=a.prior)
     cat = to_catalog(items, a.prefix, f"ЧЕРНЕТКА складської палітри на {a.size} кольорів (за корпусом із {len(corpus)} фото; "
                                       "кольори екрана, НЕ реальні фарби; замінити після вибору постачальника)")
     Path(a.out).write_text(json.dumps(cat, ensure_ascii=False, indent=1), encoding="utf-8")

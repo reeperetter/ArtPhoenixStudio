@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 import pytest
 
-from paint_by_numbers.edit import (EditError, Segmentation, add_color, merge_into, paint_polygon, rebuild_result, smooth_region,
+from paint_by_numbers.edit import (EditError, Segmentation, add_color, merge_into, paint_polygon, rebuild_result, recolor_color, smooth_region,
                                    recolor_region)
 from paint_by_numbers.export.package import build_package
 from paint_by_numbers.generate import run_pipeline
@@ -109,3 +109,22 @@ def test_smooth_errors():
     flat = _seg()
     with pytest.raises(EditError):
         smooth_region(flat, 0, 2)               # смуги вже гладкі
+
+
+def test_recolor_color_replaces_everywhere_and_drops_unused():
+    labels = np.zeros((20, 30), np.int32)
+    labels[:, 10:20] = 1
+    labels[:, 20:] = 2
+    labels[0:5, 0:5] = 3                                   # друга ділянка кольору 0 не межує з першою
+    pal = np.array([[30, 0, 0], [60, 10, 10], [90, -10, 5]], np.float32)
+    s = Segmentation(labels, np.array([0, 1, 2, 0], np.int32), pal, 4, 0)
+    n = recolor_color(s, 0, 2)
+    assert len(n.palette_lab) == 2 and len(set(n.region_color.tolist())) == 2
+    assert n.color_map()[0, 0] == n.color_map()[10, 25]    # обидві ділянки кольору 0 стали кольором 2
+    with pytest.raises(EditError):
+        recolor_color(s, 1, 1)
+    with pytest.raises(EditError):
+        recolor_color(s, 5, 1)
+    s2, idx = add_color(s, [50, 5, 5])                     # колір зі складу, якого не було
+    m = recolor_color(s2, 1, idx)
+    assert len(m.palette_lab) == 3 and (m.palette_lab == np.float32([50, 5, 5])).all(1).any()

@@ -30,7 +30,7 @@ from .help_dialog import HelpDialog
 from .history import UndoStack
 from .print_dialog import PrintProfileDialog
 from .region_editor import RegionEditPanel
-from ..edit import EditError, Segmentation, add_color, merge_into, paint_polygon, rebuild_result, recolor_region, smooth_region
+from ..edit import EditError, Segmentation, add_color, merge_into, paint_polygon, rebuild_result, recolor_color, recolor_region, smooth_region
 from .prefs import Prefs
 
 MODE_NAMES = {"simple": "Простий", "balanced": "Збалансований", "detailed": "Деталізований"}
@@ -285,6 +285,7 @@ class MainWindow(QMainWindow):
         self.edit_panel.mergeRequested.connect(self._edit_merge)
         self.edit_panel.polygonRequested.connect(self._edit_polygon)
         self.edit_panel.smoothRequested.connect(self._edit_smooth)
+        self.edit_panel.paletteRequested.connect(self._edit_palette)
         self.edit_panel.undoRequested.connect(self.undo_zones)
         self.edit_panel.redoRequested.connect(self.redo_zones)
         self.edit_panel.highlightPoint.connect(self._edit_highlight)
@@ -743,6 +744,12 @@ class MainWindow(QMainWindow):
     def _edit_merge(self, x0: float, y0: float, x1: float, y1: float) -> None:
         self._apply_edit(lambda: merge_into(self.seg, self.seg.region_at(x0, y0), self.seg.region_at(x1, y1)),
                          "злиття ділянок")
+
+    def _edit_palette(self, x: float, y: float, idx: int) -> None:
+        def make():
+            seg, to = self._edit_color(idx)
+            return recolor_color(seg, int(seg.region_color[seg.region_at(x, y)]), to)
+        self._apply_edit(make, "заміна кольору палітри в усій картині")
 
     def _edit_smooth(self, x: float, y: float, radius: int) -> None:
         self._apply_edit(lambda: smooth_region(self.seg, self.seg.region_at(x, y), radius), "згладжування ділянки")
