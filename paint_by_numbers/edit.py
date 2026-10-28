@@ -111,6 +111,42 @@ def paint_polygon(seg: Segmentation, points: list[tuple[float, float]], color: i
     return _rebuild(cmap, seg.palette_lab, seg)
 
 
+def smooth_region(seg: Segmentation, region: int, radius: int = 3) -> Segmentation:
+    """Згладжує контур ділянки: у смузі навколо неї кожен піксель отримує колір, що переважає у вікні (2r+1)².
+    Різкі зубці, перешийки й дрібні вкраплення зникають; решта картини не змінюється. Це мажоритарний фільтр, тому
+    нових кольорів не зʼявляється, а результат детермінований (при рівності голосів лишається поточний колір)."""
+    if not 0 <= region < len(seg.region_color):
+        raise EditError("Невідома ділянка.")
+    radius = int(radius)
+    if not 1 <= radius <= 25:
+        raise EditError("Сила згладжування --- від 1 до 25 пікселів.")
+    h, w = seg.labels.shape
+    m = (seg.labels == region).astype(np.uint8)
+    k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * radius + 1, 2 * radius + 1))
+    band = cv2.dilate(m, k).astype(bool)                       # ділянка + смуга навколо
+    ys, xs = np.where(band)
+    pad = radius + 1
+    y0, y1 = max(ys.min() - pad, 0), min(ys.max() + pad + 1, h)
+    x0, x1 = max(xs.min() - pad, 0), min(xs.max() + pad + 1, w)
+    cmap = seg.color_map()
+    sub = cmap[y0:y1, x0:x1]
+    best = np.full(sub.shape, -1.0, np.float32)
+    out = sub.copy()
+    ksz = (2 * radius + 1, 2 * radius + 1)
+    for c in np.unique(sub):                                  # голоси кожного кольору; тут c = індекс кольору
+        v = cv2.boxFilter((sub == c).astype(np.float32), -1, ksz, normalize=True, borderType=cv2.BORDER_REPLICATE)
+        v = v + (sub == c) * 1e-4                             # при рівності голосів лишається поточний колір
+        upd = v > best
+        out[upd] = c
+        best[upd] = v[upd]
+    res = cmap.copy()
+    bsub = band[y0:y1, x0:x1]
+    res[y0:y1, x0:x1] = np.where(bsub, out, sub)
+    if (res == cmap).all():
+        raise EditError("Контур ділянки вже гладкий: змін немає.")
+    return _rebuild(res, seg.palette_lab, seg)
+
+
 def add_color(seg: Segmentation, lab: list[float] | np.ndarray) -> tuple[Segmentation, int]:
     """Додає колір до палітри (якщо такого ще немає), повертає (нова сегментація, індекс)."""
     lab = np.asarray(lab, np.float32)

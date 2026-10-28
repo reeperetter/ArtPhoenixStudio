@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 import pytest
 
-from paint_by_numbers.edit import (EditError, Segmentation, add_color, merge_into, paint_polygon, rebuild_result,
+from paint_by_numbers.edit import (EditError, Segmentation, add_color, merge_into, paint_polygon, rebuild_result, smooth_region,
                                    recolor_region)
 from paint_by_numbers.export.package import build_package
 from paint_by_numbers.generate import run_pipeline
@@ -77,3 +77,35 @@ def test_rebuild_and_roundtrip(tmp_path):
     info = build_package(res2, tmp_path / "out", photo, force=True, original_name="t.png")
     res3 = open_project(info["dir"])
     assert (res3.rm.labels == res2.rm.labels).all()
+
+
+def _jagged():
+    labels = np.zeros((60, 60), np.int32)
+    labels[:, 30:] = 1
+    labels[10:50:4, 28:32] = 1                  # зубці на межі
+    labels[20, 10] = 1                          # вкраплення
+    from paint_by_numbers.pipeline.regions import connected_regions
+    L, col = connected_regions(labels, 2)
+    pal = np.array([[40, 0, 0], [80, 10, 10]], np.float32)
+    return Segmentation(L.astype(np.int32), col.astype(np.int32), pal, 2, 0)
+
+
+def test_smooth_removes_spikes_and_is_deterministic():
+    s = _jagged()
+    big = int(s.labels[0, 0])                   # ліва ділянка: у ній і вкраплення, і зубці
+    a = smooth_region(s, big, 4)
+    b = smooth_region(s, big, 4)
+    assert (a.labels == b.labels).all() and len(a.region_color) < len(s.region_color)   # вкраплення й зубці зникли
+    assert len(a.palette_lab) == 2                                                    # нових кольорів немає
+    assert a.labels.shape == s.labels.shape
+
+
+def test_smooth_errors():
+    s = _jagged()
+    with pytest.raises(EditError):
+        smooth_region(s, 999, 3)
+    with pytest.raises(EditError):
+        smooth_region(s, 0, 0)
+    flat = _seg()
+    with pytest.raises(EditError):
+        smooth_region(flat, 0, 2)               # смуги вже гладкі

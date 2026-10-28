@@ -30,7 +30,7 @@ from .help_dialog import HelpDialog
 from .history import UndoStack
 from .print_dialog import PrintProfileDialog
 from .region_editor import RegionEditPanel
-from ..edit import EditError, Segmentation, add_color, merge_into, paint_polygon, rebuild_result, recolor_region
+from ..edit import EditError, Segmentation, add_color, merge_into, paint_polygon, rebuild_result, recolor_region, smooth_region
 from .prefs import Prefs
 
 MODE_NAMES = {"simple": "Простий", "balanced": "Збалансований", "detailed": "Деталізований"}
@@ -284,6 +284,7 @@ class MainWindow(QMainWindow):
         self.edit_panel.recolorRequested.connect(self._edit_recolor)
         self.edit_panel.mergeRequested.connect(self._edit_merge)
         self.edit_panel.polygonRequested.connect(self._edit_polygon)
+        self.edit_panel.smoothRequested.connect(self._edit_smooth)
         self.edit_panel.undoRequested.connect(self.undo_zones)
         self.edit_panel.redoRequested.connect(self.redo_zones)
         self.edit_panel.highlightPoint.connect(self._edit_highlight)
@@ -727,6 +728,9 @@ class MainWindow(QMainWindow):
     def _edit_merge(self, x0: float, y0: float, x1: float, y1: float) -> None:
         self._apply_edit(lambda: merge_into(self.seg, self.seg.region_at(x0, y0), self.seg.region_at(x1, y1)),
                          "злиття ділянок")
+
+    def _edit_smooth(self, x: float, y: float, radius: int) -> None:
+        self._apply_edit(lambda: smooth_region(self.seg, self.seg.region_at(x, y), radius), "згладжування ділянки")
 
     def _edit_polygon(self, pts: list, idx: int) -> None:
         self._apply_edit(lambda: paint_polygon(*(lambda sc: (sc[0], pts, sc[1]))(self._edit_color(idx))), "зафарбований полігон")

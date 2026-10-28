@@ -5,7 +5,7 @@ import cv2
 import numpy as np
 from PySide6.QtCore import QPointF, Qt, Signal
 from PySide6.QtGui import QBrush, QColor, QCursor, QIcon, QPainterPath, QPen, QPixmap
-from PySide6.QtWidgets import (QButtonGroup, QComboBox, QGraphicsPathItem, QHBoxLayout, QLabel, QPushButton, QVBoxLayout,
+from PySide6.QtWidgets import (QButtonGroup, QComboBox, QGraphicsPathItem, QHBoxLayout, QLabel, QPushButton, QSpinBox, QVBoxLayout,
                                QWidget)
 
 from .canvas_view import ImageView
@@ -14,6 +14,7 @@ HINTS = {
     "pan": "Рука: перетягуйте зображення, колесо --- масштаб, подвійний клік або 0 --- вмістити.",
     "recolor": "Клік по ділянці --- вона отримає вибраний колір (сусідні ділянки того ж кольору зіллються).",
     "merge": "Клік по ділянці, яку треба прибрати, потім клік по сусідній --- перша зіллється з другою.",
+    "smooth": "Клік по ділянці --- її контур буде згладжено (сила --- у полі «Сила»). Дрібні зубці й вкраплення зникнуть.",
     "polygon": "Клік --- додати точку полігона; правий клік, Enter або подвійний клік --- завершити; Esc --- скасувати. "
                "Область отримає вибраний колір.",
 }
@@ -132,6 +133,7 @@ class RegionEditPanel(QWidget):
     """Панель інструментів + зображення. Власних обчислень немає: сигнали обробляє головне вікно."""
     recolorRequested = Signal(float, float, int)      # x, y, індекс кольору в списку choices
     mergeRequested = Signal(float, float, float, float)
+    smoothRequested = Signal(float, float, int)       # x, y, радіус у пікселях
     polygonRequested = Signal(list, int)
     undoRequested = Signal()
     redoRequested = Signal()
@@ -146,7 +148,7 @@ class RegionEditPanel(QWidget):
         self.group.setExclusive(True)
         self.tool_buttons: dict[str, QPushButton] = {}
         for key, text in (("pan", "Рука"), ("recolor", "Змінити колір"), ("merge", "Злити із сусідньою"),
-                          ("polygon", "Зафарбувати полігон")):
+                          ("smooth", "Згладити ділянку"), ("polygon", "Зафарбувати полігон")):
             b = QPushButton(text)
             b.setCheckable(True)
             b.clicked.connect(lambda _=False, k=key: self.set_tool(k))
@@ -154,6 +156,12 @@ class RegionEditPanel(QWidget):
             self.tool_buttons[key] = b
             bar.addWidget(b)
         self.tool_buttons["pan"].setChecked(True)
+        bar.addWidget(QLabel("Сила:"))
+        self.spn_smooth = QSpinBox()
+        self.spn_smooth.setRange(1, 25)
+        self.spn_smooth.setValue(3)
+        self.spn_smooth.setToolTip("Радіус згладжування в пікселях розбиття: більше число --- сильніше згладжування")
+        bar.addWidget(self.spn_smooth)
         bar.addWidget(QLabel("Колір:"))
         self.cmb = QComboBox()
         self.cmb.setMinimumWidth(220)
@@ -213,6 +221,8 @@ class RegionEditPanel(QWidget):
     def _picked(self, x: float, y: float) -> None:
         if self.tool == "recolor":
             self.recolorRequested.emit(x, y, self.cmb.currentIndex())
+        elif self.tool == "smooth":
+            self.smoothRequested.emit(x, y, self.spn_smooth.value())
         elif self.tool == "merge":
             if self._first is None:
                 self._first = (x, y)
