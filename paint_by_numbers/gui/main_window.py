@@ -26,6 +26,7 @@ from ..pipeline.priority_zones import MAX_WEIGHT, ZoneError, load_zones_file, pa
 from ..settings import PRESETS, Settings
 from .canvas_view import ImageView, ZoneCanvas
 from .batch_dialog import BatchDialog
+from .help_dialog import HelpDialog
 from .history import UndoStack
 from .print_dialog import PrintProfileDialog
 from .region_editor import RegionEditPanel
@@ -295,6 +296,8 @@ class MainWindow(QMainWindow):
         self.tbl.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.tbl.verticalHeader().setVisible(False)
         self.lst_warn = QListWidget()
+        self.lst_warn.setToolTip("Подвійний клік: відкрити пояснення кодів попереджень в інструкції")
+        self.lst_warn.itemDoubleClicked.connect(lambda _i: self.show_help("Попередження"))
         self.tbl_var = QTableWidget(0, 9)
         self.tbl_var.setHorizontalHeaderLabels(["Режим", "Кольорів", "Оцінка", "ΔE", "SSIM", "Ділянок",
                                                 "Без номера", "Виносок", "Статус"])
@@ -343,6 +346,14 @@ class MainWindow(QMainWindow):
         self.act_redo.triggered.connect(lambda _=False: self.redo_zones())
         em.addAction(self.act_undo)
         em.addAction(self.act_redo)
+        hm = self.menuBar().addMenu("Довідка")
+        a = QAction("Інструкція", self)
+        a.setShortcut(QKeySequence.StandardKey.HelpContents)          # F1
+        a.triggered.connect(lambda _=False: self.show_help())
+        hm.addAction(a)
+        a = QAction("Про програму", self)
+        a.triggered.connect(lambda _=False: self.show_about())
+        hm.addAction(a)
 
     # ------------------------------------------------------------------ відмінити / повторити (зони)
     def _record(self, label: str, key=None) -> None:
@@ -545,6 +556,24 @@ class MainWindow(QMainWindow):
         self.prefs.set("catalog_path", "")
         self.lbl_cat.setText("каталог не задано (коди P-001…)")
         self._invalidate()
+
+    # ------------------------------------------------------------------ довідка
+    def _help_section(self) -> str | None:
+        w = self.tabs.currentWidget()
+        return {id(self.canvas): "Зони пріоритету", id(self.view_numbers): "Попередження", id(self.view_color): "Фарби",
+                id(self.edit_panel): "Ручне редагування", id(self.view_compare): "Підбір",
+                id(self.view_variants): "Підбір"}.get(id(w))
+
+    def show_help(self, section: str | None = None) -> None:
+        dlg = HelpDialog(self, section or self._help_section())
+        dlg.exec()
+
+    def show_about(self) -> None:
+        from ..settings import ALGORITHM_VERSION
+        QMessageBox.about(self, "Про програму",
+                          f"<b>Картини за номерами</b><br>Версія алгоритму {ALGORITHM_VERSION}<br><br>"
+                          "Перетворює фото на виробничий пакет: контури з номерами, специфікація фарб, файли для друку.<br>"
+                          "Усі обчислення виконуються на цьому комп'ютері класичними алгоритмами, без штучного інтелекту й без інтернету.")
 
     # ------------------------------------------------------------------ друк
     def _extra(self) -> dict:

@@ -522,3 +522,31 @@ def test_print_profile_dialog_and_prefs(tmp_path):
     w2 = MainWindow(Prefs(ini))
     assert w2.print_profile == p and "A3" in w2.lbl_print.text()
     w.close(); w2.close()
+
+
+def test_help_dialog_sections_and_search(tmp_path):
+    from PySide6.QtWidgets import QApplication
+    from paint_by_numbers.gui.help_dialog import HelpDialog, load_sections
+    from paint_by_numbers.gui.main_window import MainWindow
+    from paint_by_numbers.quality import warnings as qw
+    import re
+    app = QApplication.instance() or QApplication([])
+    secs = load_sections()
+    titles = [t for t, _ in secs]
+    assert len(secs) >= 14 and titles[0] == "Швидкий старт" and all(body.strip() for _, body in secs)
+    # кожен код попередження з коду програми описано в інструкції
+    codes = set(re.findall(r'_w\("([A-Z_]+)"', open(qw.__file__, encoding="utf-8").read())) | {"IMG_CROPPED", "IMG_LOW_RES"}
+    manual = "\n".join(b for _, b in secs)
+    assert [c for c in sorted(codes) if c not in manual] == []
+    d = HelpDialog(None, "ручне редагування")
+    assert "Ручне редагування" in d.lst.currentItem().text() and "Злити" in d.view.toPlainText()
+    d.search.setText("норма покриття")
+    assert d.lst.count() >= 1 and d.lst.count() < len(secs)
+    d.search.setText("абракадабра-немає-такого")
+    assert d.lst.count() == 0 and "Нічого" in d.view.toPlainText()
+    d.search.setText("")
+    assert d.lst.count() == len(secs)
+    w = MainWindow(Prefs(str(tmp_path / "prefs.ini")))
+    w.tabs.setCurrentWidget(w.edit_panel)
+    assert w._help_section() == "Ручне редагування"
+    w.close()
