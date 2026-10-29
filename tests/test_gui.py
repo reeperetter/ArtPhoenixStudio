@@ -629,3 +629,37 @@ def test_branding_title_icon_and_author(tmp_path):
     texts = [l.text() for l in w.findChildren(QLabel)]
     assert any("ArtPhoenix Studio" in t for t in texts) and any("reeperetter" in t for t in texts)
     w.close()
+
+
+def _wheel_on(widget, dy=120):
+    from PySide6.QtCore import QPoint, QPointF, Qt
+    from PySide6.QtGui import QWheelEvent
+    from PySide6.QtWidgets import QApplication
+    pos = QPointF(widget.width() / 2, widget.height() / 2)
+    ev = QWheelEvent(pos, widget.mapToGlobal(pos), QPoint(0, 0), QPoint(0, dy), Qt.MouseButton.NoButton,
+                     Qt.KeyboardModifier.NoModifier, Qt.ScrollPhase.NoScrollPhase, False)
+    QApplication.sendEvent(widget, ev)
+
+
+def test_wheel_changes_numbers_only_in_focused_field(tmp_path):
+    from PySide6.QtWidgets import QApplication
+    from paint_by_numbers.gui.main_window import MainWindow
+    app = QApplication.instance() or QApplication([])
+    w = MainWindow(Prefs(str(tmp_path / "wg.ini")))
+    w.resize(1200, 900)
+    w.show()
+    app.processEvents()
+    for spin in (w.sp_detail, w.sp_k, w.sp_cov):
+        before = spin.value()
+        _wheel_on(spin)                                  # курсор просто над полем: значення не змінюється
+        assert spin.value() == before
+    w.cmb_mode.setCurrentIndex(0)
+    _wheel_on(w.cmb_mode, -120)
+    assert w.cmb_mode.currentIndex() == 0
+    w.sp_detail.setFocus()                               # явно обране поле: колесо працює
+    app.processEvents()
+    if w.sp_detail.hasFocus():                           # у деяких безекранних платформах фокус не видається
+        before = w.sp_detail.value()
+        _wheel_on(w.sp_detail)
+        assert w.sp_detail.value() != before
+    w.close()

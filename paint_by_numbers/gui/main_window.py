@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QButtonGroup, QCheckBox, QComb
                                QSpinBox, QSplitter, QTableWidget, QTableWidgetItem, QTabWidget, QToolButton,
                                QVBoxLayout, QWidget)
 
-from . import branding
+from . import branding, wheel_guard
 from ..compare import default_variants, select_best
 from ..generate import run_pipeline
 from ..export.package import build_package
@@ -74,6 +74,7 @@ class MainWindow(QMainWindow):
         self._reload_timer.timeout.connect(self._reload_canvas)
         self._build_ui()
         self._build_menu()
+        wheel_guard.install(self)                      # колесо змінює число лише в обраному (фокусному) полі
         author = QLabel(f"автор: {branding.AUTHOR}")          # ненав'язливо, у куті рядка стану
         author.setStyleSheet("color: gray; font-size: 8pt; padding-right: 6px;")
         self.statusBar().addPermanentWidget(author)
@@ -96,8 +97,11 @@ class MainWindow(QMainWindow):
         logo.setPixmap(branding.logo_pixmap(44))
         title = QLabel(f"<b style='font-size:16pt'>{branding.APP_NAME}</b><br>"
                        "<span style='color:gray'>картини за номерами з фото</span>")
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        head.addStretch(1)                              # логотип і назва по центру блоку за будь-якої ширини вікна
         head.addWidget(logo)
-        head.addWidget(title, 1)
+        head.addWidget(title)
+        head.addStretch(1)
         lv.addLayout(head)
 
         # 1. фото
