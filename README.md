@@ -161,7 +161,7 @@ Enter або права кнопка --- завершити; Esc --- скасу�
 (командний рядок, `ArtPhoenixStudio-cli.exe --selftest`), а також архів `dist\ArtPhoenixStudio.zip` для передачі.
 Python на комп'ютері замовника не потрібен.
 
-* Без Windows-комп'ютера: GitHub Actions збере .exe вручну (`.github/workflows/build-windows.yml`): вкладка Actions → «Збирання Windows» → Run workflow; готовий zip з'явиться внизу сторінки запуску в розділі Artifacts.
+* Без Windows-комп'ютера: GitHub Actions збере .exe вручну (`.github/workflows/build-windows.yml`): вкладка Actions → «Збирання Windows» → Run workflow; готовий zip з'явиться в розділі **Releases** (права колонка головної сторінки репозиторію, «windows-build-N») і внизу сторінки запуску в розділі Artifacts.
 
 * Шрифт DejaVu Sans (кирилиця в PDF) іде в комплекті; текст ліцензії --- `paint_by_numbers/assets/fonts/LICENSE-DejaVu.txt`.
   Його треба зберігати в поставці.
