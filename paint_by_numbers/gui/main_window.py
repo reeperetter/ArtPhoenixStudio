@@ -11,7 +11,7 @@ from PySide6.QtCore import QThread, QTimer, Qt, Signal
 from PySide6.QtGui import QAction, QBrush, QColor, QKeySequence
 from PySide6.QtWidgets import (QAbstractItemView, QButtonGroup, QCheckBox, QComboBox, QDoubleSpinBox, QFileDialog,
                                QFormLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QListWidget,
-                               QListWidgetItem, QMainWindow, QMessageBox, QProgressBar, QPushButton, QScrollArea,
+                               QListWidgetItem, QMainWindow, QMenu, QMessageBox, QProgressBar, QPushButton, QScrollArea,
                                QSpinBox, QSplitter, QTableWidget, QTableWidgetItem, QTabWidget, QToolButton,
                                QVBoxLayout, QWidget)
 
@@ -30,8 +30,10 @@ from .batch_dialog import BatchDialog
 from .help_dialog import HelpDialog
 from .history import UndoStack
 from .print_dialog import PrintProfileDialog
+from .paint_pick import PaintPickDialog
 from .region_editor import RegionEditPanel
-from ..edit import EditError, Segmentation, add_color, merge_into, paint_polygon, rebuild_result, recolor_color, recolor_region, smooth_region
+from ..edit import (EditError, Segmentation, add_color, merge_into, paint_polygon, rebuild_result, recolor_color,
+                    recolor_region, set_palette_color, smooth_region)
 from .prefs import Prefs
 
 from ..settings import MODE_NAMES_UK as MODE_NAMES
@@ -240,7 +242,13 @@ class MainWindow(QMainWindow):
         g = QGroupBox("5. Результат")
         v = QVBoxLayout(g)
         self.btn_gen = QPushButton("Створити превʼю")
-        self.btn_gen.setStyleSheet("font-weight: bold; padding: 6px;")
+        self.btn_gen.setMinimumHeight(52)                        # велика зелена кнопка: головна дія, її має бути добре видно
+        self.btn_gen.setStyleSheet(
+            "QPushButton { font-size: 13pt; font-weight: bold; color: #1b3d1f; background-color: #a5d6a7;"
+            " border: 1px solid #66bb6a; border-radius: 8px; padding: 10px; }"
+            "QPushButton:hover { background-color: #b9e4bb; }"
+            "QPushButton:pressed { background-color: #8fc892; }"
+            "QPushButton:disabled { background-color: #dcebdc; color: #8a9a8a; border-color: #c5d6c5; }")
         self.btn_gen.clicked.connect(self.generate)
         self.btn_cmp = QPushButton("Підібрати найкращий варіант")
         self.btn_cmp.setToolTip("Перебирає режими й кількості кольорів (до 9 варіантів, кілька хвилин), "
@@ -327,6 +335,10 @@ class MainWindow(QMainWindow):
         self.tbl.setHorizontalHeaderLabels(["№", "Колір", "Код", "Назва", "Площа, мм²", "Ділянок", "Ємностей", "мл"])
         self.tbl.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.tbl.verticalHeader().setVisible(False)
+        self.tbl.setToolTip("Подвійний клік по рядку: змінити цей колір палітри картини")
+        self.tbl.cellDoubleClicked.connect(lambda row, _c: self._edit_palette_color(row))
+        self.tbl.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.tbl.customContextMenuRequested.connect(self._tbl_menu)
         self.lst_warn = QListWidget()
         self.lst_warn.setToolTip("Подвійний клік: відкрити пояснення кодів попереджень в інструкції")
         self.lst_warn.itemDoubleClicked.connect(lambda _i: self.show_help("Попередження"))
@@ -774,6 +786,29 @@ class MainWindow(QMainWindow):
     def _edit_merge(self, x0: float, y0: float, x1: float, y1: float) -> None:
         self._apply_edit(lambda: merge_into(self.seg, self.seg.region_at(x0, y0), self.seg.region_at(x1, y1)),
                          "злиття ділянок")
+
+    def _tbl_menu(self, pos) -> None:
+        row = self.tbl.rowAt(pos.y())
+        if row < 0:
+            return
+        m = QMenu(self)
+        m.addAction("Змінити колір палітри…", lambda: self._edit_palette_color(row))
+        m.exec(self.tbl.viewport().mapToGlobal(pos))
+
+    def _edit_palette_color(self, row: int) -> None:
+        """Змінює сам колір палітри (усі ділянки цього кольору) на фарбу зі складу або власний колір."""
+        if not self._edit_ready() or not 0 <= row < len(self.res.spec["paints"]):
+            return
+        p = self.res.spec["paints"][row]
+        idx = int(p["number"]) - 1
+        if not 0 <= idx < len(self.seg.palette_lab):
+            return
+        dlg = PaintPickDialog(f'Колір {p["number"]}: {p["paint_code"]} {p["paint_name"]}'.strip(), p["hex"],
+                              list(self.res.settings.catalog), self.seg.palette_lab, self)
+        if dlg.exec() != dlg.DialogCode.Accepted or dlg.result_lab is None:
+            return
+        lab = dlg.result_lab
+        self._apply_edit(lambda: set_palette_color(self.seg, idx, lab), f"зміна кольору палітри №{p['number']}")
 
     def _edit_palette(self, x: float, y: float, idx: int) -> None:
         def make():

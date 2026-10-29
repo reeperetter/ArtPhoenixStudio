@@ -99,6 +99,39 @@ def recolor_color(seg: Segmentation, color: int, to: int) -> Segmentation:
     return _rebuild(rc[seg.labels], seg.palette_lab, seg)
 
 
+def hex_to_lab(hx: str) -> list[float]:
+    """#RRGGBB -> Lab (L 0..100), як у решті програми."""
+    h = hx.strip().lstrip("#")
+    if len(h) != 6:
+        raise EditError("Колір має вигляд #RRGGBB.")
+    try:
+        r, g, b = (int(h[i:i + 2], 16) for i in (0, 2, 4))
+    except ValueError:
+        raise EditError("Колір має вигляд #RRGGBB.")
+    lab = cv2.cvtColor(np.array([[[b, g, r]]], np.float32) / 255.0, cv2.COLOR_BGR2Lab)[0, 0]
+    return [float(v) for v in lab]
+
+
+def set_palette_color(seg: Segmentation, color: int, lab) -> Segmentation:
+    """Змінює САМ колір палітри: усі ділянки цього кольору стають новим кольором (інші кольори не чіпаємо).
+    Якщо такий колір у палітрі вже є, кольори зливаються (як recolor_color)."""
+    n = len(seg.palette_lab)
+    if not 0 <= color < n:
+        raise EditError("Невідомий колір.")
+    lab = np.asarray(lab, np.float32)
+    if lab.shape != (3,) or not (0 <= lab[0] <= 100) or not np.all(np.isfinite(lab)):
+        raise EditError("Колір має бути у вигляді Lab (L від 0 до 100).")
+    d = np.abs(seg.palette_lab - lab).sum(1)
+    d[color] = np.inf
+    if d.min() < 0.01:
+        return recolor_color(seg, color, int(d.argmin()))
+    if np.abs(seg.palette_lab[color] - lab).sum() < 0.01:
+        raise EditError("Це той самий колір.")
+    pal = seg.palette_lab.copy()
+    pal[color] = lab
+    return Segmentation(seg.labels, seg.region_color, pal, seg.n_before, seg.merged_for_numbers)
+
+
 def merge_into(seg: Segmentation, region: int, into: int) -> Segmentation:
     """Ділянка `region` отримує колір сусідньої `into` і зливається з нею."""
     if region == into:

@@ -663,3 +663,42 @@ def test_wheel_changes_numbers_only_in_focused_field(tmp_path):
         _wheel_on(w.sp_detail)
         assert w.sp_detail.value() != before
     w.close()
+
+
+def test_palette_color_edit_from_spec_table_and_big_green_button(tmp_path, monkeypatch):
+    from PySide6.QtWidgets import QApplication, QMessageBox
+    from paint_by_numbers.gui import main_window as mw
+    app = QApplication.instance() or QApplication([])
+    monkeypatch.setattr(QMessageBox, "information", lambda *a, **k: None)
+    monkeypatch.setattr(QMessageBox, "critical", lambda *a, **k: (_ for _ in ()).throw(AssertionError(a)))
+    rng = np.random.default_rng(4)
+    img = np.full((300, 400, 3), (200, 170, 120), np.uint8)
+    cv2.circle(img, (200, 150), 80, (40, 60, 200), -1)
+    img = np.clip(img.astype(int) + rng.integers(-10, 10, img.shape), 0, 255).astype(np.uint8)
+    photo = tmp_path / "p.png"
+    cv2.imwrite(str(photo), img)
+    w = mw.MainWindow(Prefs(str(tmp_path / "prefs.ini")))
+    w.show()
+    assert w.btn_gen.minimumHeight() >= 48 and "#a5d6a7" in w.btn_gen.styleSheet()      # велика м'яка зелена кнопка
+    w.open_photo(str(photo))
+    w.sp_w.setValue(120)
+    w.cb_auto_colors.setChecked(False)
+    w.sp_colors.setValue(6)
+    w.generate()
+    _wait(w, lambda: w.res is not None and w.job is None, 60)
+    ncol, nreg = len(w.seg.palette_lab), w.res.report["regions_final"]
+    old_hex = w.res.spec["paints"][0]["hex"]
+
+    class FakeDlg:                                   # діалог вибору: користувач обрав власний колір
+        class DialogCode:
+            Accepted = 1
+        result_lab = [60.0, 40.0, 30.0]
+        def __init__(self, *a, **k): pass
+        def exec(self): return 1
+    monkeypatch.setattr(mw, "PaintPickDialog", FakeDlg)
+    w.tbl.cellDoubleClicked.emit(0, 2)
+    _wait(w, lambda: w.job is None and w.res.report.get("manual_edits") == 1, 60)
+    assert len(w.seg.palette_lab) == ncol and w.res.report["regions_final"] == nreg      # форма не змінилася
+    assert w.res.spec["paints"][0]["hex"] != old_hex                                       # змінився колір фарби №1
+    assert w.seg_history.can_undo
+    w.close()

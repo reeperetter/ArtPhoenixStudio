@@ -129,3 +129,22 @@ def test_recolor_color_replaces_everywhere_and_drops_unused():
     s2, idx = add_color(s, [50, 5, 5])                     # колір зі складу, якого не було
     m = recolor_color(s2, 1, idx)
     assert len(m.palette_lab) == 3 and (m.palette_lab == np.float32([50, 5, 5])).all(1).any()
+
+
+def test_set_palette_color_changes_only_that_color_or_merges():
+    from paint_by_numbers.edit import hex_to_lab, set_palette_color
+    s = _seg()
+    new = set_palette_color(s, 1, [50, 20, -20])
+    assert (new.labels == s.labels).all() and (new.region_color == s.region_color).all()
+    assert np.allclose(new.palette_lab[1], [50, 20, -20]) and np.allclose(new.palette_lab[0], s.palette_lab[0])
+    merged = set_palette_color(s, 1, s.palette_lab[2])            # такий колір уже є: кольори зливаються
+    assert len(merged.palette_lab) == 2
+    with pytest.raises(EditError):
+        set_palette_color(s, 1, s.palette_lab[1])
+    with pytest.raises(EditError):
+        set_palette_color(s, 9, [50, 0, 0])
+    with pytest.raises(EditError):
+        set_palette_color(s, 1, [120, 0, 0])
+    assert abs(hex_to_lab("#FFFFFF")[0] - 100) < 0.5 and abs(hex_to_lab("000000")[0]) < 0.5
+    with pytest.raises(EditError):
+        hex_to_lab("#12345")
