@@ -32,3 +32,21 @@ def test_detail_and_auto_detail_are_deterministic_and_finer(tmp_path):
     r3 = generate(str(tmp_path / "f.png"), fine, tmp_path / "o3", force=True)
     assert (r1.rm.labels == r2.rm.labels).all()
     assert r3.report["regions_final"] >= r1.report["regions_final"]
+
+
+def test_high_detail_busy_texture_does_not_crash(tmp_path):
+    """Регресія: IndexError у merge_small_regions, коли геометрія губила полігон однієї ділянки
+    (на густій текстурі при деталізації 3 кількість номерів ставала на 1 менша за кількість ділянок)."""
+    rng = np.random.default_rng(3)
+    h, w = 600, 900
+    base = np.zeros((h, w, 3), np.float32)
+    for _ in range(250):
+        c = (rng.uniform(20, 90), rng.uniform(80, 170), rng.uniform(180, 255))
+        cv2.ellipse(base, (int(rng.uniform(0, w)), int(rng.uniform(0, h))),
+                    (int(rng.uniform(15, 70)), int(rng.uniform(8, 35))), rng.uniform(0, 180), 0, 360, c, -1)
+    img = np.clip(base + rng.normal(0, 6, base.shape), 0, 255).astype(np.uint8)
+    cv2.imwrite(str(tmp_path / "leaves.png"), img)
+    from paint_by_numbers.generate import run_pipeline
+    r = run_pipeline(str(tmp_path / "leaves.png"),
+                     Settings(mode="detailed", n_colors=12, width_mm=778.0, detail=3.0))
+    assert len(r.spots) == len(r.rm.area_px)

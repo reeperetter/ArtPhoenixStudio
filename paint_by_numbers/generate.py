@@ -154,7 +154,11 @@ def run_pipeline(photo: str | Path, settings: Settings, restored: dict | None = 
         geom = build_geometry(rm.labels, sal)
         spots = place_numbers_vector(geom.faces, rm.color, min_digit_px, max_digit_px, line_px)
         leaders = place_leaders(spots, geom.chains, rm.labels.shape, min_digit_px, line_px, ppm)
-        bad = np.array([s.digit_px <= 0 for s in spots])
+        # номери рахуються лише для ділянок, що мають полігон; ділянка без полігона (виродилася під час побудови
+        # геометрії) теж підлягає злиттю із сусідом, інакше індекси ділянок і номерів розходяться
+        bad = np.ones(len(rm.area_px), bool)
+        for s in spots:
+            bad[s.region] = s.digit_px <= 0
         if not bad.any():
             break
         before = len(rm.area_px)
