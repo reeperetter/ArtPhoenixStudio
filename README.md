@@ -18,7 +18,7 @@ uv sync
 uv run python main.py photo.jpg -o out --order 000123 --name "Портрет" --mode balanced --colors 24 --width-mm 300
 ```
 
-Основні параметри: `--mode simple|balanced|detailed`, `--colors 4..64`, `--width-mm`, `--height-mm`
+Основні параметри: `--mode draft|simple|medium|balanced|fine|detailed|max` (7 рівнів деталізації), `--colors 4..64`, `--width-mm`, `--height-mm`
 (якщо не задано, береться за пропорціями фото; при невідповідності фото кадрується по центру),
 `--px-per-mm` (робоча роздільна здатність), `--seed` (відтворюваність), `--order`, `--name`.
 

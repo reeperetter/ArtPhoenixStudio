@@ -137,7 +137,7 @@ def test_window_restores_settings(tmp_path, monkeypatch):
     w.sp_w.setValue(420)
     w.cb_auto_h.setChecked(False)
     w.sp_h.setValue(560)
-    w.cmb_mode.setCurrentIndex(2)
+    w.cmb_mode.setCurrentIndex(w.cmb_mode.findData("detailed"))
     w.cb_auto_colors.setChecked(False)
     w.sp_colors.setValue(40)
     w.sp_cov.setValue(15000)

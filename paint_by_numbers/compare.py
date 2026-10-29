@@ -38,13 +38,14 @@ COST_WEIGHT = 0.3        # внесок витрат на фарбу у штра
 COLOR_STEP = 8
 MARGIN_NOTE = 0.02       # різниця оцінок, нижче якої вибір вважається неоднозначним (гіпотеза)
 MODE_ORDER = list(PRESETS)       # «простіший» режим переважає при рівності
+COMPARE_MODES = ["simple", "balanced", "detailed"]      # типові варіанти порівняння (7 режимів дали б 21 запуск)
 
 
 def default_variants(base: Settings, modes: list[str] | None = None,
                      colors: list[int] | None = None) -> list[tuple[str, int]]:
     """Список (режим, кількість кольорів). Без явних кольорів: типове значення режиму та +-COLOR_STEP."""
     out: list[tuple[str, int]] = []
-    for m in (modes or MODE_ORDER):
+    for m in (modes or COMPARE_MODES):
         if m not in PRESETS:
             raise ValueError(f"Невідомий режим «{m}».")
         d = PRESETS[m].n_colors

@@ -72,7 +72,7 @@ def run_pipeline(photo: str | Path, settings: Settings, restored: dict | None = 
         clock = now
 
     p = settings.preset
-    ppm = settings.px_per_mm
+    ppm = settings.ppm
     img = load_image(str(photo), settings.width_mm, settings.height_mm, ppm)
     lap("load")
     zmaps = build_zone_maps(settings, img)
@@ -284,7 +284,7 @@ def zone_metrics(zmaps: ZoneMaps, rm: RegionMap, spots: list[NumberSpot], src_bg
 
 def preview_zones(photo, settings: Settings):
     """Швидкий перегляд зон на фото без повної генерації (для налаштування зон оператором)."""
-    img = load_image(str(photo), settings.width_mm, settings.height_mm, settings.px_per_mm)
+    img = load_image(str(photo), settings.width_mm, settings.height_mm, settings.ppm)
     zmaps = build_zone_maps(settings, img)
     if zmaps is None:
         return None

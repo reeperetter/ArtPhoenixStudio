@@ -34,7 +34,7 @@ from .region_editor import RegionEditPanel
 from ..edit import EditError, Segmentation, add_color, merge_into, paint_polygon, rebuild_result, recolor_color, recolor_region, smooth_region
 from .prefs import Prefs
 
-MODE_NAMES = {"simple": "Простий", "balanced": "Збалансований", "detailed": "Деталізований"}
+from ..settings import MODE_NAMES_UK as MODE_NAMES
 SEV_COLOR = {"critical": "#d32f2f", "warning": "#e68900", "info": "#6b6b6b"}
 
 

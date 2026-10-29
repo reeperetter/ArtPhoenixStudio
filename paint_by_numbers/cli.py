@@ -37,7 +37,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--colors", type=int, default=None, help="кількість кольорів (4..64)")
     ap.add_argument("--width-mm", type=float, default=300.0)
     ap.add_argument("--height-mm", type=float, default=None)
-    ap.add_argument("--px-per-mm", type=float, default=3.0)
+    ap.add_argument("--px-per-mm", type=float, default=None, help="робоча роздільна здатність (за замовчуванням за режимом: 3...5)")
     ap.add_argument("--seed", type=int, default=12345)
     ap.add_argument("--coverage-mm2", type=float, default=None,
                     help="норма покриття N однієї ємності 3 мл у мм² (виміряна)")

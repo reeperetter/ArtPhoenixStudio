@@ -16,13 +16,24 @@ class ModePreset:
     line_mm: float
     min_digit_mm: float
     denoise_iterations: int
+    px_per_mm: float = 3.0       # робоча роздільна здатність: дрібніші деталі потребують більшої
 
 
+# Сім рівнів від найпростішого до найдокладнішого. Ключі simple/balanced/detailed лишилися (проєкти, налаштування, CLI).
+# Це стартові гіпотези (розділ 6.4 ТЗ): мінімальні цифри й ширини треба уточнити фізичними тестами.
 PRESETS: dict[str, ModePreset] = {
-    "simple":   ModePreset(16, 25.0, 3.0, 0.25, 2.5, 3),
-    "balanced": ModePreset(24, 12.0, 2.0, 0.20, 2.2, 2),
-    "detailed": ModePreset(36, 6.0, 1.5, 0.15, 2.0, 1),
+    "draft":    ModePreset(12, 40.0, 4.0, 0.30, 2.8, 3, 3.0),
+    "simple":   ModePreset(16, 25.0, 3.0, 0.25, 2.5, 3, 3.0),
+    "medium":   ModePreset(20, 17.0, 2.5, 0.22, 2.35, 2, 3.0),
+    "balanced": ModePreset(24, 12.0, 2.0, 0.20, 2.2, 2, 3.0),
+    "fine":     ModePreset(30, 8.5, 1.7, 0.175, 2.1, 1, 3.5),
+    "detailed": ModePreset(36, 6.0, 1.5, 0.15, 2.0, 1, 4.0),
+    "max":      ModePreset(44, 3.5, 1.2, 0.12, 1.8, 1, 5.0),
 }
+MODE_NAMES_UK = {"draft": "1. Ескіз", "simple": "2. Простий", "medium": "3. Помірний", "balanced": "4. Збалансований",
+                 "fine": "5. Докладний", "detailed": "6. Деталізований", "max": "7. Максимальний"}
+MODE_NAMES_EN = {"draft": "Draft", "simple": "Simple", "medium": "Medium", "balanced": "Balanced",
+                 "fine": "Fine", "detailed": "Detailed", "max": "Maximum"}
 
 
 @dataclass
@@ -31,7 +42,7 @@ class Settings:
     n_colors: int | None = None          # None -> з режиму
     width_mm: float = 300.0
     height_mm: float | None = None       # None -> за пропорціями фото
-    px_per_mm: float = 3.0               # робоча роздільна здатність
+    px_per_mm: float | None = None       # робоча роздільна здатність; None -> за режимом (3...5 пікселів на мм)
     seed: int = 12345                    # детермінованість (розділ 1.4 ТЗ)
     # проєкт і специфікація фарб (розділ 11 ТЗ)
     order_number: str = "000001"
@@ -55,6 +66,10 @@ class Settings:
     @property
     def preset(self) -> ModePreset:
         return PRESETS[self.mode]
+
+    @property
+    def ppm(self) -> float:
+        return float(self.px_per_mm) if self.px_per_mm else self.preset.px_per_mm
 
     @property
     def colors(self) -> int:

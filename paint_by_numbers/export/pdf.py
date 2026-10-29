@@ -135,8 +135,8 @@ _L = {
 }
 
 
-_MODES = {True: {"simple": "Простий", "balanced": "Збалансований", "detailed": "Деталізований"},
-          False: {"simple": "Simple", "balanced": "Balanced", "detailed": "Detailed"}}
+from ..settings import MODE_NAMES_EN as _EN, MODE_NAMES_UK as _UK
+_MODES = {True: {k: v.split(". ", 1)[-1] for k, v in _UK.items()}, False: dict(_EN)}
 
 
 def write_spec_pdf(path: str | Path, spec: dict, meta: dict, warnings: list[dict]) -> dict:

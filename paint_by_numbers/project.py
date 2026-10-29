@@ -62,7 +62,7 @@ def open_project(path: str | Path) -> Result:
     data["merged_for_numbers"] = eff.get("merged_for_numbers", 0)
 
     # перевірка узгодженості розбиття з фото й налаштуваннями
-    img = load_image(str(src), settings.width_mm, settings.height_mm, settings.px_per_mm)
+    img = load_image(str(src), settings.width_mm, settings.height_mm, settings.ppm)
     h, w = img.bgr.shape[:2]
     lab = data["labels"]
     if lab.shape != (h, w):
