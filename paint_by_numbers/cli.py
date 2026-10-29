@@ -24,7 +24,7 @@ def _utf8_console() -> None:
 
 def main(argv: list[str] | None = None) -> int:
     _utf8_console()
-    ap = argparse.ArgumentParser(prog="paint-by-numbers",
+    ap = argparse.ArgumentParser(prog="artphoenix-studio-cli",
                                  description="Фото -> виробничий пакет картини за номерами")
     ap.add_argument("photo", nargs="?", help="шлях до фотографії")
     ap.add_argument("--selftest", action="store_true", help="самоперевірка збірки: синтетичне фото, пакет, порівняння")

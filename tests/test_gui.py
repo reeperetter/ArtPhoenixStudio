@@ -613,3 +613,19 @@ def test_splitter_between_view_and_spec_is_draggable_and_remembered(tmp_path):
     w2 = MainWindow(Prefs(ini))
     assert 150 < w2.split_v.sizes()[0] < 260 and w2.split_v.sizes()[0] < w2.split_v.sizes()[1]
     w2.close()
+
+
+def test_branding_title_icon_and_author(tmp_path):
+    from PySide6.QtWidgets import QApplication, QLabel
+    from paint_by_numbers.gui import branding
+    from paint_by_numbers.gui.main_window import MainWindow
+    app = QApplication.instance() or QApplication([])
+    assert branding.APP_NAME == "ArtPhoenix Studio" and branding.AUTHOR == "reeperetter"
+    assert branding.logo_path().is_file() and (branding.icon_dir() / "app.ico").is_file()
+    ic = branding.app_icon()
+    assert not ic.isNull() and not ic.pixmap(32, 32).isNull()
+    w = MainWindow(Prefs(str(tmp_path / "b.ini")))
+    assert w.windowTitle() == "ArtPhoenix Studio" and not w.windowIcon().isNull()
+    texts = [l.text() for l in w.findChildren(QLabel)]
+    assert any("ArtPhoenix Studio" in t for t in texts) and any("reeperetter" in t for t in texts)
+    w.close()

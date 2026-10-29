@@ -112,7 +112,7 @@ def write_print_pdf(path: str | Path, geom: Geometry, spots: list[NumberSpot], p
     c = canvas.Canvas(str(path), pagesize=(width_mm * mm, height_mm * mm), pageCompression=1,
                       initialFontName=font)
     c.setTitle(title)
-    c.setCreator("paint-by-numbers")
+    c.setCreator("ArtPhoenix Studio")
     n = draw_artwork(c, geom, spots, px_per_mm, height_mm, line_mm, font)
     c.showPage()
     c.save()

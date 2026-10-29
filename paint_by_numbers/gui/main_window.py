@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QButtonGroup, QCheckBox, QComb
                                QSpinBox, QSplitter, QTableWidget, QTableWidgetItem, QTabWidget, QToolButton,
                                QVBoxLayout, QWidget)
 
+from . import branding
 from ..compare import default_variants, select_best
 from ..generate import run_pipeline
 from ..export.package import build_package
@@ -59,7 +60,8 @@ class MainWindow(QMainWindow):
     def __init__(self, prefs: Prefs | None = None):
         super().__init__()
         self.prefs = prefs or Prefs()
-        self.setWindowTitle("Картини за номерами")
+        self.setWindowTitle(branding.APP_NAME)
+        self.setWindowIcon(branding.app_icon())
         self.resize(1400, 860)
         self.photo: str | None = None
         self.zones: list[dict] = []
@@ -72,6 +74,9 @@ class MainWindow(QMainWindow):
         self._reload_timer.timeout.connect(self._reload_canvas)
         self._build_ui()
         self._build_menu()
+        author = QLabel(f"автор: {branding.AUTHOR}")          # ненав'язливо, у куті рядка стану
+        author.setStyleSheet("color: gray; font-size: 8pt; padding-right: 6px;")
+        self.statusBar().addPermanentWidget(author)
         self._load_prefs()
         self._update_buttons()
         self._update_undo_actions()
@@ -84,6 +89,16 @@ class MainWindow(QMainWindow):
         left = QWidget()
         lv = QVBoxLayout(left)
         lv.setContentsMargins(8, 8, 8, 8)
+
+        # шапка: логотип і назва програми
+        head = QHBoxLayout()
+        logo = QLabel()
+        logo.setPixmap(branding.logo_pixmap(44))
+        title = QLabel(f"<b style='font-size:16pt'>{branding.APP_NAME}</b><br>"
+                       "<span style='color:gray'>картини за номерами з фото</span>")
+        head.addWidget(logo)
+        head.addWidget(title, 1)
+        lv.addLayout(head)
 
         # 1. фото
         g = QGroupBox("1. Фото")
@@ -594,10 +609,13 @@ class MainWindow(QMainWindow):
 
     def show_about(self) -> None:
         from ..settings import ALGORITHM_VERSION
-        QMessageBox.about(self, "Про програму",
-                          f"<b>Картини за номерами</b><br>Версія алгоритму {ALGORITHM_VERSION}<br>Автор: reeperetter<br><br>"
+        box = QMessageBox(self)
+        box.setWindowTitle(f"Про {branding.APP_NAME}")
+        box.setIconPixmap(branding.logo_pixmap(96))
+        box.setText(f"<b>{branding.APP_NAME}</b><br>Версія алгоритму {ALGORITHM_VERSION}<br>Автор: reeperetter<br><br>"
                           "Перетворює фото на виробничий пакет: контури з номерами, специфікація фарб, файли для друку.<br>"
                           "Усі обчислення виконуються на цьому комп'ютері класичними алгоритмами, без штучного інтелекту й без інтернету.")
+        box.exec()
 
     # ------------------------------------------------------------------ друк
     def _extra(self) -> dict:

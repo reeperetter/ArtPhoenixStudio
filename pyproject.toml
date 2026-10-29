@@ -2,7 +2,7 @@
 name = "paint-by-numbers"
 version = "0.1.0"
 authors = [{ name = "reeperetter" }]
-description = "Автоматичне створення картин за номерами з фотографій (без ШІ)"
+description = "ArtPhoenix Studio: автоматичне створення картин за номерами з фотографій (без ШІ)"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -21,7 +21,9 @@ dependencies = [
 gui = ["PySide6>=6.6"]
 
 [project.scripts]
+artphoenix-studio-cli = "paint_by_numbers.cli:main"
 paint-by-numbers = "paint_by_numbers.cli:main"
+artphoenix-studio = "paint_by_numbers.gui.app:main"
 paint-by-numbers-gui = "paint_by_numbers.gui.app:main"
 
 [dependency-groups]

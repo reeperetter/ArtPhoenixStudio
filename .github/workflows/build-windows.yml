@@ -1,6 +1,6 @@
-# Збирання Windows-версії (PaintByNumbers.exe + pbn-cli.exe) на GitHub Actions.
+# Збирання Windows-версії (ArtPhoenixStudio.exe + ArtPhoenixStudio-cli.exe) на GitHub Actions.
 # Запускається ТІЛЬКИ ВРУЧНУ: GitHub -> вкладка Actions -> «Збирання Windows» -> Run workflow.
-name: Збирання Windows
+name: Збирання Windows (ArtPhoenix Studio)
 
 on:
   workflow_dispatch:
@@ -29,23 +29,22 @@ jobs:
       - name: Тести
         if: ${{ inputs.run_tests }}
         run: |
-          uv pip install --python .venv-build pytest
-          uv run --no-sync python -m pytest -q
+          uv run --no-sync --with pytest python -m pytest -q
 
       - name: PyInstaller
         run: uv run --no-sync pyinstaller packaging/pbn.spec --noconfirm --clean --distpath dist --workpath build
 
       - name: Самоперевірка зібраної програми
-        run: dist/PaintByNumbers/pbn-cli.exe --selftest
+        run: dist/ArtPhoenixStudio/ArtPhoenixStudio-cli.exe --selftest
 
       - name: Архів
         shell: pwsh
-        run: Compress-Archive -Path dist/PaintByNumbers -DestinationPath dist/PaintByNumbers-windows.zip
+        run: Compress-Archive -Path dist/ArtPhoenixStudio -DestinationPath dist/ArtPhoenixStudio-windows.zip
 
       - name: Завантажити результат
         uses: actions/upload-artifact@v4
         with:
-          name: PaintByNumbers-windows
-          path: dist/PaintByNumbers-windows.zip
+          name: ArtPhoenixStudio-windows
+          path: dist/ArtPhoenixStudio-windows.zip
           if-no-files-found: error
           retention-days: 30

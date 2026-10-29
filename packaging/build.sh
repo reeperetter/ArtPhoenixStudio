@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Збирання для Linux/macOS через uv (https://docs.astral.sh/uv/). pip не використовується.
-# Використання:  packaging/build.sh        Результат: dist/PaintByNumbers/{PaintByNumbers,pbn-cli}
+# Використання:  packaging/build.sh        Результат: dist/ArtPhoenixStudio/{ArtPhoenixStudio,ArtPhoenixStudio-cli}
 # Залежності беруться з pyproject.toml/uv.lock (група «build»), середовище --- .venv-build (системний Python не чіпається).
 # Потрібний Python (3.12) uv завантажить сам, якщо його немає. Увесь вивід дублюється в build.log.
 set -Eeuo pipefail
@@ -25,9 +25,9 @@ uv sync --python 3.12 --no-dev --group build
 echo "== Python у збірці: $(uv run --no-sync python --version)"
 # 2) збирання й самоперевірка
 uv run --no-sync pyinstaller packaging/pbn.spec --noconfirm --clean --distpath dist --workpath build
-dist/PaintByNumbers/pbn-cli --selftest
+dist/ArtPhoenixStudio/ArtPhoenixStudio-cli --selftest
 echo
-echo "Готово: dist/PaintByNumbers/PaintByNumbers"
+echo "Готово: dist/ArtPhoenixStudio/ArtPhoenixStudio"
 echo "Якщо вікно не відкривається через Qt/xcb:"
 echo "  Debian/Ubuntu/Mint: sudo apt install libxcb-cursor0 libxkbcommon-x11-0 libegl1"
 echo "  Fedora/Nobara:      sudo dnf install xcb-util-cursor libxkbcommon-x11 mesa-libEGL"

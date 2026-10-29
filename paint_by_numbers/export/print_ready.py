@@ -118,7 +118,7 @@ def write_print_pdf_with_bleed(path: str | Path, res, p: PrintProfile, title: st
     pw, ph = trim_w + 2 * slug, trim_h + 2 * slug
     c = canvas.Canvas(str(path), pagesize=(pw * mm, ph * mm), pageCompression=1, initialFontName=font)
     c.setTitle(title)
-    c.setCreator("paint-by-numbers")
+    c.setCreator("ArtPhoenix Studio")
     tx0, ty0 = slug, slug
     tx1, ty1 = slug + trim_w, slug + trim_h
     for name, (a, b, cc, d) in (("setTrimBox", (tx0, ty0, tx1, ty1)),
@@ -228,7 +228,7 @@ def write_tiled_pdf(path: str | Path, res, p: PrintProfile, title: str) -> dict:
     nx, ny = len(xs), len(ys)
     c = canvas.Canvas(str(path), pagesize=(sw * mm, sh * mm), pageCompression=1, initialFontName=font)
     c.setTitle(title)
-    c.setCreator("paint-by-numbers")
+    c.setCreator("ArtPhoenix Studio")
     T = (dict(index="Схема складання", sheet="Аркуш", of="з", row="ряд", col="колонка", glue="перекриття: склеїти",
               order="Замовлення", hint=f"Друкуйте без масштабування (100 %). Аркуші накладаються на {ov:g} мм: "
                                        "суміщайте контури, обріжте поля й склейте. Нумерація: ряд-колонка.")

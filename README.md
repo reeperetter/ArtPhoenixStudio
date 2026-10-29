@@ -1,4 +1,6 @@
-# paint-by-numbers
+# ArtPhoenix Studio
+
+<img src="paint_by_numbers/assets/icons/logo_512.png" width="120" align="right" alt="ArtPhoenix Studio">
 
 Автор: **reeperetter**.
 
@@ -120,8 +122,8 @@ CIEDE2000 перевірено на еталонних парах Sharma, Wu, Da
 
 ## Графічний інтерфейс
 
-    pip install PySide6          # або: uv sync --extra gui
-    python3 main_gui.py [фото.jpg]
+    uv sync --extra gui          # PySide6 для графічного інтерфейсу
+    uv run python main_gui.py [фото.jpg]
 
 Порядок роботи: відкрити фото -> задати розмір полотна й режим -> (за потреби) позначити зони
 інструментами ▭ ◯ ⬠ (колесо миші --- масштаб; ✋ або середня кнопка миші --- посунути зображення, подвійний клік або клавіша 0 --- вмістити; для багатокутника: клік --- точка, подвійний клік,
@@ -152,12 +154,14 @@ Enter або права кнопка --- завершити; Esc --- скасу�
 
 ## Збирання .exe для Windows
 
-На Windows 10/11 x64 встановіть Python 3.12+ (https://www.python.org/downloads/, позначте «Add python.exe to PATH»),
-* Без Windows-комп'ютера: GitHub Actions збере .exe вручну (файл `.github/workflows/build-windows.yml`): вкладка Actions → «Збирання Windows» → Run workflow; готовий zip з'явиться внизу сторінки запуску в розділі Artifacts.
-розпакуйте проєкт і двічі клацніть `packaging\build_windows.bat`. Скрипт створює віртуальне середовище, ставить
-залежності (потрібен інтернет), проганяє тести, збирає програму PyInstaller і запускає самоперевірку.
-Результат: `dist\PaintByNumbers\PaintByNumbers.exe` (графічний інтерфейс) і `pbn-cli.exe` (командний рядок,
-`pbn-cli.exe --selftest`), а також архів `dist\PaintByNumbers.zip` для передачі. Python на комп'ютері замовника не потрібен.
+На Windows 10/11 x64 встановіть [uv](https://docs.astral.sh/uv/) (PowerShell: `irm https://astral.sh/uv/install.ps1 | iex`),
+розпакуйте проєкт і двічі клацніть `packaging\build_windows.bat`. uv сам завантажить Python 3.12 і залежності за `uv.lock`
+(потрібен інтернет), далі скрипт проганяє тести, збирає програму PyInstaller і запускає самоперевірку.
+Результат: `dist\ArtPhoenixStudio\ArtPhoenixStudio.exe` (графічний інтерфейс, зі значком) і `ArtPhoenixStudio-cli.exe`
+(командний рядок, `ArtPhoenixStudio-cli.exe --selftest`), а також архів `dist\ArtPhoenixStudio.zip` для передачі.
+Python на комп'ютері замовника не потрібен.
+
+* Без Windows-комп'ютера: GitHub Actions збере .exe вручну (`.github/workflows/build-windows.yml`): вкладка Actions → «Збирання Windows» → Run workflow; готовий zip з'явиться внизу сторінки запуску в розділі Artifacts.
 
 * Шрифт DejaVu Sans (кирилиця в PDF) іде в комплекті; текст ліцензії --- `paint_by_numbers/assets/fonts/LICENSE-DejaVu.txt`.
   Його треба зберігати в поставці.
