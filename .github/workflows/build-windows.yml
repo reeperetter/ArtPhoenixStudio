@@ -1,0 +1,51 @@
+# Збирання Windows-версії (PaintByNumbers.exe + pbn-cli.exe) на GitHub Actions.
+# Запускається ТІЛЬКИ ВРУЧНУ: GitHub -> вкладка Actions -> «Збирання Windows» -> Run workflow.
+name: Збирання Windows
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_tests:
+        description: "Запустити тести перед збиранням"
+        type: boolean
+        default: true
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    env:
+      UV_PROJECT_ENVIRONMENT: .venv-build
+      PYTHONUTF8: "1"
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Залежності (uv sync, Python 3.12, група build)
+        run: uv sync --python 3.12 --no-dev --group build
+
+      - name: Тести
+        if: ${{ inputs.run_tests }}
+        run: |
+          uv pip install --python .venv-build pytest
+          uv run --no-sync python -m pytest -q
+
+      - name: PyInstaller
+        run: uv run --no-sync pyinstaller packaging/pbn.spec --noconfirm --clean --distpath dist --workpath build
+
+      - name: Самоперевірка зібраної програми
+        run: dist/PaintByNumbers/pbn-cli.exe --selftest
+
+      - name: Архів
+        shell: pwsh
+        run: Compress-Archive -Path dist/PaintByNumbers -DestinationPath dist/PaintByNumbers-windows.zip
+
+      - name: Завантажити результат
+        uses: actions/upload-artifact@v4
+        with:
+          name: PaintByNumbers-windows
+          path: dist/PaintByNumbers-windows.zip
+          if-no-files-found: error
+          retention-days: 30

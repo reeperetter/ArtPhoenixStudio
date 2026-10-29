@@ -153,6 +153,7 @@ Enter або права кнопка --- завершити; Esc --- скасу�
 ## Збирання .exe для Windows
 
 На Windows 10/11 x64 встановіть Python 3.12+ (https://www.python.org/downloads/, позначте «Add python.exe to PATH»),
+* Без Windows-комп'ютера: GitHub Actions збере .exe вручну (файл `.github/workflows/build-windows.yml`): вкладка Actions → «Збирання Windows» → Run workflow; готовий zip з'явиться внизу сторінки запуску в розділі Artifacts.
 розпакуйте проєкт і двічі клацніть `packaging\build_windows.bat`. Скрипт створює віртуальне середовище, ставить
 залежності (потрібен інтернет), проганяє тести, збирає програму PyInstaller і запускає самоперевірку.
 Результат: `dist\PaintByNumbers\PaintByNumbers.exe` (графічний інтерфейс) і `pbn-cli.exe` (командний рядок,
