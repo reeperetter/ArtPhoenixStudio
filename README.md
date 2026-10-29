@@ -161,7 +161,7 @@ Enter або права кнопка --- завершити; Esc --- скасу�
 * Шрифт DejaVu Sans (кирилиця в PDF) іде в комплекті; текст ліцензії --- `paint_by_numbers/assets/fonts/LICENSE-DejaVu.txt`.
   Його треба зберігати в поставці.
 * Папка зібраної програми важить ~0,5 ГБ (Qt, OpenCV, SciPy); архів менший. Це нормально для PyInstaller.
-* Linux/macOS: `packaging/build.sh` сам створює віртуальне середовище `.venv-build` (працює на Ubuntu/Debian із PEP 668), ставить залежності, збирає й запускає самоперевірку. Потрібні Python 3.12–3.13 і `python3-venv`; для запуску вікна на чистій системі: `libxcb-cursor0 libxkbcommon-x11-0 libegl1`.
+* Linux/macOS: `packaging/build.sh` сам створює віртуальне середовище `.venv-build`, ставить залежності, збирає й запускає самоперевірку; увесь вивід лишається в `build.log`. Потрібен Python 3.12 або 3.13; якщо його в системі нема (Mint 21, Nobara з Python 3.14), встановіть [uv](https://docs.astral.sh/uv/) (`curl -LsSf https://astral.sh/uv/install.sh | sh`), і скрипт сам візьме Python 3.12. Для запуску вікна на чистій системі: Debian/Ubuntu/Mint `libxcb-cursor0 libxkbcommon-x11-0 libegl1`; Fedora/Nobara `xcb-util-cursor libxkbcommon-x11 mesa-libEGL`.
 * Першу збірку було перевірено на Linux тією самою специфікацією (`packaging/build.sh`): програма стартує,
   `--selftest` проходить, зокрема PDF із кирилицею та порівняння варіантів у дочірніх процесах.
   На Windows збірку ще не запускали: перший запуск `build_windows.bat` --- справжня перевірка.
