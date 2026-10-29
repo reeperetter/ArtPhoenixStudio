@@ -31,7 +31,7 @@ def test_parse_valid_shapes_and_defaults():
     {"shape": "polygon", "points": [[0, 0], [1, 1]]},
     {"shape": "polygon", "points": [[0, 0], [1, 1], [2, 0]]},              # координата > 1
     {"shape": "rect", "x0": 0.1, "y0": 0.1, "x1": 0.5, "y1": 0.4, "weight": 0},
-    {"shape": "rect", "x0": 0.1, "y0": 0.1, "x1": 0.5, "y1": 0.4, "weight": 9},
+    {"shape": "rect", "x0": 0.1, "y0": 0.1, "x1": 0.5, "y1": 0.4, "weight": 11},
     {"shape": "rect", "x0": 0.1, "y0": 0.1, "x1": 0.5, "y1": 0.4, "frame": "x"},
 ])
 def test_parse_rejects_bad_zones(bad):

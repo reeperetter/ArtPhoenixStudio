@@ -27,6 +27,7 @@ from .quality import warnings as qw
 from .settings import ALGORITHM_VERSION, Settings
 
 PREVIEW_SCALE = 2
+ZONE_FLOOR_FACTOR = 0.3        # у зоні пріоритету ділянки можуть бути в ~3 рази меншими за мінімум для цифри (номер піде на виноску)
 MIN_DIGIT_FLOOR_MM = 1.6       # менших цифр читати вже неможливо навіть із деталізацією
 MAX_NARROW_PASSES = 6
 MAX_FINAL_PASSES = 5
@@ -120,7 +121,7 @@ def run_pipeline(photo: str | Path, settings: Settings, restored: dict | None = 
         lap("quantize")
         L0, col0 = connected_regions(qlabels, k)
         lap("components")
-        rm = merge_small_regions(L0, col0, lab, sal, base_min_px, zone=zw, zone_floor_px=floor_px,
+        rm = merge_small_regions(L0, col0, lab, sal, base_min_px, zone=zw, zone_floor_px=floor_px * ZONE_FLOOR_FACTOR,
                                  fixed_palette=centers if exact else None)
         lap("merge")
         # вузькі виступи й перемички вужчі за мінімальну ширину (розділ 8.3 ТЗ), далі повторне об'єднання
@@ -128,7 +129,7 @@ def run_pipeline(photo: str | Path, settings: Settings, restored: dict | None = 
                                 protect=None if unit is None else unit > 0.3)
         if L1 is not rm.labels:
             cl, cc = connected_regions(rm.color[L1], len(rm.palette_lab))
-            rm = merge_small_regions(cl, cc, lab, sal, base_min_px, zone=zw, zone_floor_px=floor_px,
+            rm = merge_small_regions(cl, cc, lab, sal, base_min_px, zone=zw, zone_floor_px=floor_px * ZONE_FLOOR_FACTOR,
                                      fixed_palette=rm.palette_lab if exact else None)
         lap("protrusions")
         # ділянки без місця для номера об'єднуються із сусідами; різко контрастні деталі лишаються
@@ -140,7 +141,7 @@ def run_pipeline(photo: str | Path, settings: Settings, restored: dict | None = 
                 break
             before = len(rm.area_px)
             rm = merge_small_regions(rm.labels, rm.color, lab, sal, base_min_px, forced=bad,
-                                     keep_contrast=KEEP_CONTRAST, n_before=rm.n_before, zone=zw, zone_floor_px=floor_px,
+                                     keep_contrast=KEEP_CONTRAST, n_before=rm.n_before, zone=zw, zone_floor_px=floor_px * ZONE_FLOOR_FACTOR,
                                      fixed_palette=rm.palette_lab if exact else None)
             if len(rm.area_px) == before:
                 break
@@ -163,7 +164,7 @@ def run_pipeline(photo: str | Path, settings: Settings, restored: dict | None = 
             break
         before = len(rm.area_px)
         rm = merge_small_regions(rm.labels, rm.color, get_lab(), sal, base_min_px, forced=bad, keep_contrast=None,
-                                 n_before=rm.n_before, zone=zw, zone_floor_px=floor_px,
+                                 n_before=rm.n_before, zone=zw, zone_floor_px=floor_px * ZONE_FLOOR_FACTOR,
                                  fixed_palette=rm.palette_lab if exact else None)
         merged_for_numbers += before - len(rm.area_px)
         if len(rm.area_px) == before:

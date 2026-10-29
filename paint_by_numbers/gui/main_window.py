@@ -212,7 +212,7 @@ class MainWindow(QMainWindow):
         self.ed_zname.editingFinished.connect(self._zone_edited)
         self.sp_zw = QDoubleSpinBox(minimum=0.1, maximum=MAX_WEIGHT, value=2.0, singleStep=0.5, decimals=1)
         self.sp_zw.valueChanged.connect(self._zone_edited)
-        self.sp_zw.setToolTip("0.1…5: що більше, то більше деталей у зоні (та більше ділянок без місця для номера)")
+        self.sp_zw.setToolTip("0.1…10: що більше, то більше деталей у зоні (та більше ділянок без місця для номера)")
         zf.addRow("Назва", self.ed_zname)
         zf.addRow("Вага", self.sp_zw)
         v.addLayout(zf)

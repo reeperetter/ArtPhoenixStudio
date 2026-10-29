@@ -24,7 +24,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-MAX_WEIGHT = 5.0
+MAX_WEIGHT = 10.0
 DEFAULT_WEIGHT = 2.0
 UNIT_FULL_WEIGHT = 1.5      # вага, при якій зона вважається «цілком важливою» (unit = 1)
 

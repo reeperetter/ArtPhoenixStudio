@@ -15,9 +15,10 @@ def denoise(bgr: np.ndarray, iterations: int) -> np.ndarray:
 def denoise_zoned(bgr: np.ndarray, iterations: int, unit: np.ndarray | None) -> np.ndarray:
     """Згладжування слабшає в зонах пріоритету (там лишаються дрібніші деталі)."""
     heavy = denoise(bgr, iterations)
-    if unit is None or iterations <= 1 or not unit.any():
+    if unit is None or not unit.any():
         return heavy
-    light = denoise(bgr, 1)
+    # у зоні пріоритету лишається лише дуже легке згладжування: дрібні деталі (очі, губи, зморшки) не розмиваються
+    light = cv2.bilateralFilter(bgr, d=5, sigmaColor=18, sigmaSpace=3)
     u = unit[..., None]
     return np.clip(light.astype(np.float32) * u + heavy.astype(np.float32) * (1.0 - u) + 0.5, 0, 255).astype(np.uint8)
 
