@@ -12,7 +12,18 @@ from .quality.warnings import summarize
 from .settings import PRESETS, Settings
 
 
+def _utf8_console() -> None:
+    """Windows-консоль за замовчуванням має однобайтове кодування (cp1252/cp1251): українські повідомлення
+    падали б з UnicodeEncodeError. Виводимо в UTF-8, а непридатні символи замінюємо, а не падаємо."""
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError, OSError):      # потоку немає (віконний режим) або він не підтримує зміну
+            pass
+
+
 def main(argv: list[str] | None = None) -> int:
+    _utf8_console()
     ap = argparse.ArgumentParser(prog="paint-by-numbers",
                                  description="Фото -> виробничий пакет картини за номерами")
     ap.add_argument("photo", nargs="?", help="шлях до фотографії")
