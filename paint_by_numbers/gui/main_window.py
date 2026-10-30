@@ -29,6 +29,7 @@ from ..pipeline.priority_zones import MAX_WEIGHT, ZoneError, load_zones_file, pa
 from ..settings import PRESETS, Settings
 from .canvas_view import ImageView, ZoneCanvas
 from .batch_dialog import BatchDialog
+from .collapsible import CollapsibleGroup
 from .help_dialog import HelpDialog
 from .history import UndoStack
 from .print_dialog import PrintProfileDialog
@@ -90,7 +91,15 @@ class MainWindow(QMainWindow):
         self._update_undo_actions()
 
     # ------------------------------------------------------------------ побудова
+    def _group(self, title: str, idx: int) -> CollapsibleGroup:
+        g = CollapsibleGroup(title)
+        self._groups.append(g)
+        g.toggled_collapsed.connect(lambda _v: self.prefs.set(
+            "collapsed", ",".join(str(i) for i, x in enumerate(self._groups) if x.is_collapsed())))
+        return g
+
     def _build_ui(self) -> None:
+        self._groups: list[CollapsibleGroup] = []
         split = QSplitter(self)
         self.setCentralWidget(split)
 
@@ -112,7 +121,7 @@ class MainWindow(QMainWindow):
         lv.addLayout(head)
 
         # 1. фото
-        g = QGroupBox(tr("1. Фото"))
+        g = self._group(tr("1. Фото"), 0)
         f = QVBoxLayout(g)
         self.btn_open = QPushButton(tr("Відкрити фото…"))
         self.btn_open.clicked.connect(self.open_photo)
@@ -128,7 +137,7 @@ class MainWindow(QMainWindow):
         lv.addWidget(g)
 
         # 2. полотно і режим
-        g = QGroupBox(tr("2. Полотно і режим"))
+        g = self._group(tr("2. Полотно і режим"), 1)
         f = QFormLayout(g)
         self.sp_w = QDoubleSpinBox(maximum=3000, minimum=50, value=300, suffix=tr(" мм"), decimals=0)
         self.cb_auto_h = QCheckBox(tr("висота за пропорціями фото"))
@@ -157,7 +166,7 @@ class MainWindow(QMainWindow):
         self.cb_auto_h.toggled.connect(self._schedule_reload)
 
         # 3. фарби
-        g = QGroupBox(tr("3. Фарби (необовʼязково)"))
+        g = self._group(tr("3. Фарби (необовʼязково)"), 2)
         f = QFormLayout(g)
         row = QHBoxLayout()
         self.btn_cat = QPushButton(tr("Каталог…"))
@@ -191,7 +200,7 @@ class MainWindow(QMainWindow):
         lv.addWidget(g)
 
         # 4. зони
-        g = QGroupBox(tr("4. Зони пріоритету"))
+        g = self._group(tr("4. Зони пріоритету"), 3)
         v = QVBoxLayout(g)
         tools = QHBoxLayout()
         self.tool_group = QButtonGroup(self)
@@ -244,7 +253,7 @@ class MainWindow(QMainWindow):
         lv.addWidget(g)
 
         # 5. дії
-        g = QGroupBox(tr("5. Результат"))
+        g = self._group(tr("5. Результат"), 4)
         v = QVBoxLayout(g)
         self.btn_gen = QPushButton(tr("Створити превʼю"))
         self.btn_gen.setMinimumHeight(52)                        # велика зелена кнопка: головна дія, її має бути добре видно
@@ -291,6 +300,9 @@ class MainWindow(QMainWindow):
         v.addWidget(self.lbl_status)
         lv.addWidget(g)
         lv.addStretch(1)
+        for i in [int(v) for v in str(self.prefs.get("collapsed") or "").split(",") if v.strip().isdigit()]:
+            if i < len(self._groups):
+                self._groups[i].set_collapsed(True)
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)

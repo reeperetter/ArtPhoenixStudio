@@ -702,3 +702,27 @@ def test_palette_color_edit_from_spec_table_and_big_green_button(tmp_path, monke
     assert w.res.spec["paints"][0]["hex"] != old_hex                                       # змінився колір фарби №1
     assert w.seg_history.can_undo
     w.close()
+
+
+def test_left_groups_collapse_and_persist(tmp_path):
+    from PySide6.QtWidgets import QApplication
+    from paint_by_numbers.gui.main_window import MainWindow
+    app = QApplication.instance() or QApplication([])
+    ini = str(tmp_path / "c.ini")
+    w = MainWindow(Prefs(ini))
+    w.show()
+    app.processEvents()
+    g = w._groups[1]
+    h_open = g.height()
+    w.sp_w.setVisible(True)
+    g.set_collapsed(True)
+    app.processEvents()
+    assert g.is_collapsed() and not w.sp_w.isVisible() and g.title().startswith("▸")
+    assert g.sizeHint().height() < h_open
+    g.set_collapsed(False)
+    app.processEvents()
+    assert w.sp_w.isVisible() and g.title().startswith("▾")
+    w._groups[3].set_collapsed(True)
+    w.prefs.sync()
+    w2 = MainWindow(Prefs(ini))
+    assert w2._groups[3].is_collapsed() and not w2._groups[1].is_collapsed()

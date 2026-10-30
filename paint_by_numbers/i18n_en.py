@@ -1,6 +1,7 @@
 """Англійські переклади інтерфейсу: ключ --- українське формулювання (див. i18n.py). Файл згенеровано
 tools/i18n_tool.py і відредаговано вручну."""
 EN = {
+    "Клацніть по заголовку, щоб згорнути або розгорнути": "Click the title to collapse or expand",
     'Для інтерфейсу потрібен PySide6: uv sync --extra gui': 'PySide6 is required for the interface: uv sync --extra gui',
     'Ласкаво просимо до {}': 'Welcome to {}',
     'Відкрити коротку інструкцію? Її завжди можна відкрити клавішею F1.': 'Open the short manual? You can always open it with the F1 key.',

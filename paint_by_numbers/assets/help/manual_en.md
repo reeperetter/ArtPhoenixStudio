@@ -18,6 +18,8 @@ The program turns a customer's photo into a production package for a paint-by-nu
 
 The divider between the image and the tables below can be **dragged with the mouse**: enlarge the image or the specification as you prefer. The position is remembered. The mouse wheel zooms the image around the cursor. In number fields and drop-down lists the wheel changes the value only when the field is selected (clicked); if the cursor merely passes over a field, the wheel scrolls the panel and changes nothing.
 
+The blocks on the left **collapse when you click their title** (▾/▸), so the panel fits a low window. Which blocks are collapsed is remembered.
+
 **On the left** there are five blocks from top to bottom: 1. Photo, 2. Canvas and mode, 3. Paints, 4. Priority zones, 5. Result.
 
 **On the right** are tabs with images:
@@ -72,6 +74,8 @@ A catalogue is a JSON file with a list of paints (code, name, colour). Buttons i
 - **"Starter (100)"**: a built-in **draft** stock palette of 100 colours (8 skin tones, neutrals, muted warm and cool colours, natural colours). At most 24 colours from it go into a kit, the best ones for the particular photo. These are screen colours, **not real paints**. Replace it once you have chosen a supplier.
 - **"Catalogue…"**: load your own file. Example format: `examples/catalog_sample.json`.
 - **"Reset"**: work without a catalogue (paints get codes P-001, P-002…).
+
+**Without a catalogue** the colours are computed from the photo itself (k-means in Lab space): there are exactly as many as the mode or your manual setting says (12–44; some may disappear when small regions merge), and the codes P-001, P-002… merely number them. Such colours are closer to the photo than a catalogue but do not correspond to real paints.
 
 With a catalogue the program picks the best colours for this photo **directly from the stock** (no more than the requested number) and paints with exactly those. Identical codes in different orders mean the same paint, so a combined purchase list can be made for a batch.
 

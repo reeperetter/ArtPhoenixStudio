@@ -81,12 +81,12 @@ def pooled(corpus: list[np.ndarray], per_image: int = 4000):
     return np.vstack(pts), np.concatenate(w)
 
 
-def gamut_prior(step_l: float = 8.0, step_ab: float = 10.0, max_chroma: float = 60.0) -> np.ndarray:
+def gamut_prior(step_l: float = 8.0, step_ab: float = 10.0, max_chroma: float = 90.0) -> np.ndarray:
     """Рівномірна сітка Lab у межах sRGB: слабкий «апріор», щоб велика палітра не перепідганялася під кілька фото."""
     g = []
     for L in np.arange(8.0, 98.0, step_l):
-        for a in np.arange(-60.0, 61.0, step_ab):
-            for b in np.arange(-60.0, 61.0, step_ab):
+        for a in np.arange(-90.0, 91.0, step_ab):
+            for b in np.arange(-90.0, 91.0, step_ab):
                 if math.hypot(a, b) <= max_chroma:
                     g.append([L, a, b])
     g = np.array(g, np.float32)
