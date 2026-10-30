@@ -28,7 +28,7 @@ import numpy as np
 from .export.package import build_package
 from .generate import Result, run_pipeline
 from .quality.warnings import summarize
-from .settings import PRESETS, Settings
+from .settings import MAX_COLORS, MIN_COLORS, PRESETS, Settings
 
 DE_REF = 25.0            # ΔE76, при якому внесок точності кольору в оцінку нульовий
 DENSITY_REF = 150.0      # ділянок на 100 см², за якого складність вважається граничною
@@ -51,7 +51,7 @@ def default_variants(base: Settings, modes: list[str] | None = None,
         d = PRESETS[m].n_colors
         cs = colors if colors else [d - COLOR_STEP, d, d + COLOR_STEP]
         for c in cs:
-            c = int(min(max(c, 4), 64))
+            c = int(min(max(c, MIN_COLORS), MAX_COLORS))
             if (m, c) not in out:
                 out.append((m, c))
     return out

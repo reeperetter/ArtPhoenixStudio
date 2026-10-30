@@ -118,7 +118,7 @@ def build_items(source: str | Path, base: Settings, numbering: str = "name", sta
                     raise ValueError(f"невідомий режим «{r['mode']}» (є: {', '.join(PRESETS)})")
                 kw["mode"] = r["mode"]
             if r.get("colors"):
-                kw["n_colors"] = int(_num(r["colors"], "colors", 4, 64))
+                kw["n_colors"] = int(_num(r["colors"], "colors", 4, 36))
             zf = Path(r["zones"]) if r.get("zones") else photo.with_name(photo.stem + ".zones.json")
             zf = zf if zf.is_absolute() else (root / zf)
             zones = base.zones

@@ -6,6 +6,8 @@ from dataclasses import fields, dataclass, field, asdict
 
 ALGORITHM_VERSION = "0.5.0"
 PROJECT_FORMAT_VERSION = 1
+MIN_COLORS = 4
+MAX_COLORS = 36          # межа кількості кольорів в одній картині (комерційний набір); склад фарб може бути більшим
 
 
 @dataclass(frozen=True)
@@ -26,9 +28,9 @@ PRESETS: dict[str, ModePreset] = {
     "simple":   ModePreset(16, 25.0, 3.0, 0.25, 2.5, 3, 3.0),
     "medium":   ModePreset(20, 17.0, 2.5, 0.22, 2.35, 2, 3.0),
     "balanced": ModePreset(24, 12.0, 2.0, 0.20, 2.2, 2, 3.0),
-    "fine":     ModePreset(30, 8.5, 1.7, 0.175, 2.1, 1, 3.5),
-    "detailed": ModePreset(36, 6.0, 1.5, 0.15, 2.0, 1, 4.0),
-    "max":      ModePreset(44, 3.5, 1.2, 0.12, 1.8, 1, 5.0),
+    "fine":     ModePreset(28, 8.5, 1.7, 0.175, 2.1, 1, 3.5),
+    "detailed": ModePreset(32, 6.0, 1.5, 0.15, 2.0, 1, 4.0),
+    "max":      ModePreset(36, 3.5, 1.2, 0.12, 1.8, 1, 5.0),
 }
 MODE_NAMES_UK = {"draft": "1. Ескіз", "simple": "2. Простий", "medium": "3. Помірний", "balanced": "4. Збалансований",
                  "fine": "5. Докладний", "detailed": "6. Деталізований", "max": "7. Максимальний"}

@@ -16,8 +16,8 @@ def _row(mode, colors, **kw):
 
 def test_default_variants_clamped_and_deduped():
     v = default_variants(Settings())
-    assert ("simple", 8) in v and ("balanced", 24) in v and ("detailed", 44) in v and len(v) == 9
-    assert default_variants(Settings(), ["balanced"], [70, 70, 2]) == [("balanced", 64), ("balanced", 4)]
+    assert ("simple", 8) in v and ("balanced", 24) in v and ("detailed", 36) in v and len(v) == 9
+    assert default_variants(Settings(), ["balanced"], [70, 70, 2]) == [("balanced", 36), ("balanced", 4)]
     with pytest.raises(ValueError):
         default_variants(Settings(), ["nope"])
 
@@ -70,3 +70,8 @@ def test_contact_sheet_and_end_to_end(tmp_path):
     sel = res.candidates["selected"]
     best = res.candidates["candidates"][res.candidates["selected_index"]]
     assert res.settings.mode == sel["mode"] and res.report["regions_final"] == best["regions"]
+
+
+def test_color_limit_is_36():
+    from paint_by_numbers.settings import MAX_COLORS, PRESETS
+    assert MAX_COLORS == 36 and max(p.n_colors for p in PRESETS.values()) == MAX_COLORS

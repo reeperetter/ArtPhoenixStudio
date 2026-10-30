@@ -139,7 +139,7 @@ def test_window_restores_settings(tmp_path, monkeypatch):
     w.sp_h.setValue(560)
     w.cmb_mode.setCurrentIndex(w.cmb_mode.findData("detailed"))
     w.cb_auto_colors.setChecked(False)
-    w.sp_colors.setValue(40)
+    w.sp_colors.setValue(34)
     w.sp_cov.setValue(15000)
     w.sp_k.setValue(1.5)
     w.cb_cov_ok.setChecked(True)
@@ -148,12 +148,12 @@ def test_window_restores_settings(tmp_path, monkeypatch):
     w.close()
 
     w2 = MainWindow(Prefs(ini))
-    assert (w2.sp_w.value(), w2.sp_h.value(), w2.cmb_mode.currentData(), w2.sp_colors.value()) == (420, 560, "detailed", 40)
+    assert (w2.sp_w.value(), w2.sp_h.value(), w2.cmb_mode.currentData(), w2.sp_colors.value()) == (420, 560, "detailed", 34)
     assert not w2.cb_auto_h.isChecked() and w2.sp_h.isEnabled() and not w2.cb_auto_colors.isChecked() and w2.sp_colors.isEnabled()
     assert w2.sp_cov.value() == 15000 and w2.sp_k.value() == 1.5 and w2.cb_cov_ok.isChecked()
     assert len(w2.catalog) == 2 and "cat.json" in w2.lbl_cat.text()
     s = w2.make_settings()
-    assert s.mode == "detailed" and s.n_colors == 40 and s.height_mm == 560 and len(s.catalog) == 2
+    assert s.mode == "detailed" and s.n_colors == 34 and s.height_mm == 560 and len(s.catalog) == 2
     w2.reset_prefs()
     assert w2.sp_w.value() == 300 and w2.cb_auto_h.isChecked() and w2.cmb_mode.currentData() == "balanced"
     # каталог, що зник, не ламає запуск

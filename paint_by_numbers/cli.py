@@ -34,7 +34,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--order", default="000001", help="номер замовлення")
     ap.add_argument("--name", default="", help="назва проєкту")
     ap.add_argument("--mode", choices=list(PRESETS), default="balanced")
-    ap.add_argument("--colors", type=int, default=None, help="кількість кольорів (4..64)")
+    ap.add_argument("--colors", type=int, default=None, help="кількість кольорів (4..36)")
     ap.add_argument("--width-mm", type=float, default=300.0)
     ap.add_argument("--height-mm", type=float, default=None)
     ap.add_argument("--px-per-mm", type=float, default=None, help="робоча роздільна здатність (за замовчуванням за режимом: 3...5)")
@@ -101,8 +101,8 @@ def main(argv: list[str] | None = None) -> int:
     if not a.photo and not a.batch:
         ap.error("потрібен шлях до фотографії (або --batch)")
     a.out = a.out or "out"
-    if a.colors is not None and not 4 <= a.colors <= 64:
-        ap.error("--colors має бути в межах 4..64")
+    if a.colors is not None and not 4 <= a.colors <= 36:
+        ap.error("--colors має бути в межах 4..36")
     if not 0.5 <= a.detail <= 3.0:
         ap.error("--detail має бути від 0.5 до 3")
     if a.safety_factor < 1:

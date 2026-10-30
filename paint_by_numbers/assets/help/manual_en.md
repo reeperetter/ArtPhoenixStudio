@@ -4,7 +4,7 @@ The program turns a customer's photo into a production package for a paint-by-nu
 
 1. **Open a photo**: the "Open photo…" button (Ctrl+O).
 2. **Set the canvas**: width in mm, height (from the photo's proportions or manually).
-3. **Choose a mode** and, if needed, the number of colours. For a kit of up to 24 colours keep "Balanced" or "Simple".
+3. **Choose a mode** and, if needed, the number of colours. The maximum in one picture is **36 colours**; for an economical kit (up to 24) keep "Balanced" or "Simple".
 4. **Choose paints**: "Starter (176)" or your own catalogue. This is optional, but it is the only way for identical paints to match between orders.
 5. **Mark priority zones** (eyes, important details) on the "Photo and zones" tab. Skin and faces are detailed automatically (see "Detail").
 6. **Click the big green "Create preview" button** (Ctrl+R). It usually takes 10–40 seconds.
@@ -51,15 +51,15 @@ Settings (size, mode, paints, shop name, print options) are remembered between l
 | 2. Simple | 16 | 25 mm² | 3 mm | 2.5 mm | 3 px/mm |
 | 3. Medium | 20 | 17 mm² | 2.5 mm | 2.35 mm | 3 px/mm |
 | 4. Balanced | 24 | 12 mm² | 2 mm | 2.2 mm | 3 px/mm |
-| 5. Fine | 30 | 8.5 mm² | 1.7 mm | 2.1 mm | 3.5 px/mm |
-| 6. Detailed | 36 | 6 mm² | 1.5 mm | 2.0 mm | 4 px/mm |
-| 7. Maximum | 44 | 3.5 mm² | 1.2 mm | 1.8 mm | 5 px/mm |
+| 5. Fine | 28 | 8.5 mm² | 1.7 mm | 2.1 mm | 3.5 px/mm |
+| 6. Detailed | 32 | 6 mm² | 1.5 mm | 2.0 mm | 4 px/mm |
+| 7. Maximum | 36 | 3.5 mm² | 1.2 mm | 1.8 mm | 5 px/mm |
 
-The higher the level, the smaller the regions and digits, the longer the calculation (level 7 takes about twice as long as level 4) and the harder the painting. For a commercial kit limited to 24 colours keep the colour count at 24 and raise only the level. The "Detail" field below merely fine-tunes the chosen level.
+The higher the level, the smaller the regions and digits, the longer the calculation (level 7 takes about twice as long as level 4) and the harder the painting. The colour count is limited to **36**. For an economical kit keep 24 and raise only the level. The "Detail" field below merely fine-tunes the chosen level.
 
 These are starting values that still need to be refined by physical tests on real canvases.
 
-The number of colours can be set manually (clear the "number of colours by mode" checkbox). Fewer colours make the kit cheaper and the painting easier, but the picture less faithful. For a commercial kit we aim for **at most 24 colours**, preferably fewer.
+The number of colours can be set manually (clear the "number of colours by mode" checkbox). Fewer colours make the kit cheaper and the painting easier, but the picture less faithful. For a commercial kit we aim for **at most 36 colours**, preferably fewer.
 
 The actual number of colours in the picture may be lower than requested: small regions merge into neighbours and extra colours disappear (informational warning COLORS_REDUCED).
 
@@ -71,11 +71,11 @@ The "Detail" field (0.5–3) makes regions and digits smaller: at 1.4 a portrait
 
 ### Paint stock (catalogue)
 A catalogue is a JSON file with a list of paints (code, name, colour). Buttons in the "3. Paints" block:
-- **"Starter (176)"**: a built-in **draft** stock palette of 176 colours (8 skin tones, neutrals, muted warm and cool colours, natural colours). At most 24 colours from it go into a kit, the best ones for the particular photo. These are screen colours, **not real paints**. Replace it once you have chosen a supplier.
+- **"Starter (176)"**: a built-in **draft** stock palette of 176 colours (8 skin tones, neutrals, muted warm and cool colours, natural colours). At most 36 colours from it go into a kit, the best ones for the particular photo. These are screen colours, **not real paints**. Replace it once you have chosen a supplier.
 - **"Catalogue…"**: load your own file. Example format: `examples/catalog_sample.json`.
 - **"Reset"**: work without a catalogue (paints get codes P-001, P-002…).
 
-**Without a catalogue** the colours are computed from the photo itself (k-means in Lab space): there are exactly as many as the mode or your manual setting says (12–44; some may disappear when small regions merge), and the codes P-001, P-002… merely number them. Such colours are closer to the photo than a catalogue but do not correspond to real paints.
+**Without a catalogue** the colours are computed from the photo itself (k-means in Lab space): there are exactly as many as the mode or your manual setting says (12–36; some may disappear when small regions merge), and the codes P-001, P-002… merely number them. Such colours are closer to the photo than a catalogue but do not correspond to real paints.
 
 With a catalogue the program picks the best colours for this photo **directly from the stock** (no more than the requested number) and paints with exactly those. Identical codes in different orders mean the same paint, so a combined purchase list can be made for a batch.
 
@@ -147,7 +147,7 @@ A new preview discards manual edits (the program asks for confirmation). A saved
 ## How to get the best result
 
 1. **Photo.** Sharp, not heavily blurred, evenly lit; the face should take up a noticeable part of the frame. The higher the resolution, the better (the IMG_LOW_RES warning means too low).
-2. **Paints.** Work with the stock catalogue ("Starter (176)" or your own). The program will pick up to 24 best colours from it for this photo.
+2. **Paints.** Work with the stock catalogue ("Starter (176)" or your own). The program will pick up to 36 best colours from it for this photo.
 3. **Detail.** Start with the "Balanced" mode and detail 1.0. If the face looks too simplified, raise detail to 1.2–1.5 and check the digits on a test print.
 4. **Priority zones.** Mark eyes, lips and other important details: they get more colours and smaller regions.
 5. **Editing.** After the preview fix the small things by hand: smooth a ragged outline, merge a tiny region, replace a colour everywhere.
@@ -225,7 +225,7 @@ The bleed and wrap margin are white. Parameters depend on the print shop or prin
 
 **Numbers do not fit in small regions.** The program moves the number out on a leader line or merges the region with a neighbour. If there are too many leaders, reduce the number of colours or choose the "Simple" mode.
 
-**The picture looks "flat".** Increase the number of colours (up to 24) and detail (1.2–1.5), mark a zone on the eyes and lips, and make sure the catalogue has enough skin tones.
+**The picture looks "flat".** Increase the number of colours (up to 36) and detail (1.2–1.5), mark a zone on the eyes and lips, and make sure the catalogue has enough skin tones.
 
 **The face is simplified while the background is too fine.** The background can be smoothed with the "Smooth region" tool, and the face additionally marked with a priority zone. The "automatically detail face and skin" checkbox must be on.
 
@@ -233,7 +233,7 @@ The bleed and wrap margin are white. Parameters depend on the print shop or prin
 
 **The divider between the image and the table does not move.** Hover over the thin strip between them (the cursor changes) and drag.
 
-**Too many colours for the kit.** Reduce the number of colours. With a catalogue the program will choose the best 12–24 from your stock.
+**Too many colours for the kit.** Reduce the number of colours. With a catalogue the program will choose the best 12–36 from your stock.
 
 **The "Save package…" button is unavailable.** Create a preview first. Any change of settings discards the preview.
 

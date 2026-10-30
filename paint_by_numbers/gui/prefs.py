@@ -13,7 +13,7 @@ DEFAULTS = {
     "auto_colors": True, "colors": 24, "coverage_mm2": 0.0, "safety_factor": 1.3, "coverage_confirmed": False,
     "catalog_path": "", "store_name": "", "print_profile": "", "help_seen": False, "language": "", "detail": 1.0, "auto_detail": True, "split_sizes": "", "collapsed": "", "last_photo_dir": "", "last_save_dir": "", "last_zones_dir": "", "last_catalog_dir": "",
 }
-RANGES = {"width_mm": (50.0, 3000.0), "height_mm": (50.0, 3000.0), "colors": (4, 64),
+RANGES = {"width_mm": (50.0, 3000.0), "height_mm": (50.0, 3000.0), "colors": (4, 36),
           "coverage_mm2": (0.0, 1e7), "safety_factor": (1.0, 10.0), "detail": (0.5, 3.0)}
 
 

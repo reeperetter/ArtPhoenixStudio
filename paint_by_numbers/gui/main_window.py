@@ -151,7 +151,7 @@ class MainWindow(QMainWindow):
         self.cmb_mode.setCurrentIndex(list(PRESETS).index("balanced"))
         self.cb_auto_colors = QCheckBox(tr("кількість кольорів за режимом"))
         self.cb_auto_colors.setChecked(True)
-        self.sp_colors = QSpinBox(minimum=4, maximum=64, value=24)
+        self.sp_colors = QSpinBox(minimum=4, maximum=36, value=24)
         self.sp_colors.setEnabled(False)
         self.cb_auto_colors.toggled.connect(lambda c: self.sp_colors.setEnabled(not c))
         f.addRow(tr("Ширина"), self.sp_w)
