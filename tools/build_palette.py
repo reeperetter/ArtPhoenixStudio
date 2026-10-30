@@ -81,7 +81,7 @@ def pooled(corpus: list[np.ndarray], per_image: int = 4000):
     return np.vstack(pts), np.concatenate(w)
 
 
-def gamut_prior(step_l: float = 8.0, step_ab: float = 10.0, max_chroma: float = 90.0) -> np.ndarray:
+def gamut_prior(step_l: float = 8.0, step_ab: float = 10.0, max_chroma: float = 74.0) -> np.ndarray:
     """Рівномірна сітка Lab у межах sRGB: слабкий «апріор», щоб велика палітра не перепідганялася під кілька фото."""
     g = []
     for L in np.arange(8.0, 98.0, step_l):
@@ -160,6 +160,45 @@ def build(corpus, size: int, seed: int = SEED, prior: float = 0.0):
     return items
 
 
+def _in_srgb(L, a, b) -> bool:
+    rgb = cv2.cvtColor(np.array([[[L, a, b]]], np.float32), cv2.COLOR_Lab2BGR)[0, 0]
+    return bool(((rgb > 0.003) & (rgb < 0.997)).all())
+
+
+def max_chroma(L: float, hue_deg: float) -> float:
+    """Найбільша насиченість (C*) при заданих L* і відтінку, яку ще можна показати в sRGB (бісекція)."""
+    lo, hi = 0.0, 130.0
+    for _ in range(24):
+        m = (lo + hi) / 2
+        if _in_srgb(L, m * math.cos(math.radians(hue_deg)), m * math.sin(math.radians(hue_deg))):
+            lo = m
+        else:
+            hi = m
+    return lo
+
+
+# Систематичні доповнення: (L*, частка від максимально можливої насиченості). Навіщо вони, коли кольори вже дібрано за даними:
+# дані корпусу (кілька фото) не покривають блідих пастельних тонів неба, стін і фонів, темних тонів з відтінком (чорний
+# одяг, волосся, тіні) і чистих насичених кольорів (квіти, яскраві предмети), хоча саме вони займають великі площі.
+EXTRA_LEVELS = [(80, 0.30), (91, 0.14), (25, 0.35), (40, 0.75), (55, 0.72), (70, 0.65)]
+MAX_EXTRA_CHROMA = 62.0     # понад це --- «неонові» кольори, яких справжні акрилові фарби не дають
+EXTRA_HUES = [35 + 30 * k for k in range(12)]
+
+
+def add_extras(items, min_dist: float = 6.0):
+    """Додає до палітри кольори сітки «відтінок x світлість x насиченість», яких ще немає (відстань у Lab >= min_dist)."""
+    out = list(items)
+    for L, f in EXTRA_LEVELS:
+        for h in EXTRA_HUES:
+            C = min(max_chroma(L, h) * f, MAX_EXTRA_CHROMA)
+            if C < 3:
+                continue
+            lab = [float(L), C * math.cos(math.radians(h)), C * math.sin(math.radians(h))]
+            if min(math.dist(lab, c) for _, c in out) >= min_dist:
+                out.append((name_color(lab), lab))
+    return out
+
+
 def to_catalog(items, prefix: str, title: str) -> dict:
     # впорядкування: світлі до темних, за відтінком усередині нейтральних; коди ST-01…
     order = sorted(range(len(items)), key=lambda i: (-items[i][1][0]))
@@ -178,6 +217,7 @@ def main() -> int:
     ap.add_argument("--builtin", action="store_true")
     ap.add_argument("--size", type=int, default=48)
     ap.add_argument("--prior", type=float, default=0.0, help="частка ваги рівномірної сітки гамуту, 0..0.9")
+    ap.add_argument("--extras", action="store_true", help="додати систематичні пастелі, темні й насичені кольори")
     ap.add_argument("--prefix", default="ST")
     ap.add_argument("--out", required=True)
     a = ap.parse_args()
@@ -186,7 +226,9 @@ def main() -> int:
         print("Порожній корпус: вкажіть --photos і/або --builtin", file=sys.stderr)
         return 2
     items = build(corpus, a.size, prior=a.prior)
-    cat = to_catalog(items, a.prefix, f"ЧЕРНЕТКА складської палітри на {a.size} кольорів (за корпусом із {len(corpus)} фото; "
+    if a.extras:
+        items = add_extras(items)
+    cat = to_catalog(items, a.prefix, f"ЧЕРНЕТКА складської палітри на {len(items)} кольорів (за корпусом із {len(corpus)} фото; "
                                       "кольори екрана, НЕ реальні фарби; замінити після вибору постачальника)")
     Path(a.out).write_text(json.dumps(cat, ensure_ascii=False, indent=1), encoding="utf-8")
     print(f"{a.out}: {len(cat['paints'])} кольорів, корпус {len(corpus)} фото")

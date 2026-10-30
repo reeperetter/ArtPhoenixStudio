@@ -239,12 +239,12 @@ python main.py --purchase-list out --bulk-ml 50      # лише зібрати �
 Старий режим лишився: `--catalog-snap`.
 
 ```
-python main.py photo.jpg --catalog starter_150 --colors 20    # вбудована чернетка палітри (150 кольорів: шкіра, природа, нейтральні)
+python main.py photo.jpg --catalog starter_176 --colors 20    # вбудована чернетка палітри (176 кольорів: шкіра, пастелі, природа, нейтральні, темні)
 python main.py photo.jpg --catalog мій_склад.json --colors 24
 ```
 
-`starter_150` (старіші `starter_100`, `starter_48` і `starter_36` лишаються для сумісності; будується `tools/build_palette.py --photos ПАПКА --builtin --size 150 --prior 0.3`) — **чернетка**: кольори екрана, не реальні фарби; замінити після вибору постачальника й мазків-зразків.
-У GUI: кнопка «Стартова (150)» у блоці «Фарби».
+`starter_176` (старіші `starter_150`, `starter_100`, `starter_48` і `starter_36` лишаються для сумісності; будується `tools/build_palette.py --photos ПАПКА --builtin --size 125 --prior 0.3 --extras`) — **чернетка**: кольори екрана, не реальні фарби; замінити після вибору постачальника й мазків-зразків.
+У GUI: кнопка «Стартова (176)» у блоці «Фарби».
 
 ## Журнал замовлень і статистика кольорів
 
