@@ -173,7 +173,7 @@ class MainWindow(QMainWindow):
         self.btn_cat.clicked.connect(self.load_catalog_file)
         self.btn_cat_clear = QPushButton(tr("Скинути"))
         self.btn_cat_clear.clicked.connect(self.clear_catalog)
-        self.btn_cat_starter = QPushButton(tr("Стартова (100)"))
+        self.btn_cat_starter = QPushButton(tr("Стартова (150)"))
         self.btn_cat_starter.setToolTip(tr("Вбудована ЧЕРНЕТКА складської палітри для портретів (кольори екрана, не реальні фарби)"))
         self.btn_cat_starter.clicked.connect(self.load_starter_palette)
         row.addWidget(self.btn_cat)
@@ -638,12 +638,12 @@ class MainWindow(QMainWindow):
 
     def load_starter_palette(self) -> None:
         try:
-            self.catalog = load_catalog("starter_100")
+            self.catalog = load_catalog("starter_150")
         except (CatalogError, OSError) as e:
             QMessageBox.warning(self, tr("Вбудована палітра"), tr(str(e)))
             return
         self.lbl_cat.setText(tr(f"стартова палітра (чернетка): {len(self.catalog)} фарб"))
-        self.prefs.set("catalog_path", "starter_100")
+        self.prefs.set("catalog_path", "starter_150")
         self._invalidate()
 
     def clear_catalog(self) -> None:
