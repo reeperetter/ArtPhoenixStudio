@@ -9,15 +9,16 @@ from PySide6.QtWidgets import (QButtonGroup, QComboBox, QGraphicsPathItem, QHBox
                                QWidget)
 
 from .canvas_view import ImageView
+from ..i18n import tr
 
 HINTS = {
-    "pan": "Рука: перетягуйте зображення, колесо --- масштаб, подвійний клік або 0 --- вмістити.",
-    "recolor": "Клік по ділянці --- вона отримає вибраний колір (сусідні ділянки того ж кольору зіллються).",
-    "merge": "Клік по ділянці, яку треба прибрати, потім клік по сусідній --- перша зіллється з другою.",
-    "palette": "Клік по ділянці --- УСІ ділянки цього кольору в усій картині отримають вибраний колір (заміна або злиття кольорів палітри).",
-    "smooth": "Клік по ділянці --- її контур буде згладжено (сила --- у полі «Сила»). Дрібні зубці й вкраплення зникнуть.",
-    "polygon": "Клік --- додати точку полігона; правий клік, Enter або подвійний клік --- завершити; Esc --- скасувати. "
-               "Область отримає вибраний колір.",
+    "pan": tr("Рука: перетягуйте зображення, колесо --- масштаб, подвійний клік або 0 --- вмістити."),
+    "recolor": tr("Клік по ділянці --- вона отримає вибраний колір (сусідні ділянки того ж кольору зіллються)."),
+    "merge": tr("Клік по ділянці, яку треба прибрати, потім клік по сусідній --- перша зіллється з другою."),
+    "palette": tr("Клік по ділянці --- УСІ ділянки цього кольору в усій картині отримають вибраний колір (заміна або злиття кольорів палітри)."),
+    "smooth": tr("Клік по ділянці --- її контур буде згладжено (сила --- у полі «Сила»). Дрібні зубці й вкраплення зникнуть."),
+    "polygon": tr("Клік --- додати точку полігона; правий клік, Enter або подвійний клік --- завершити; Esc --- скасувати. "
+               "Область отримає вибраний колір."),
 }
 
 
@@ -149,8 +150,8 @@ class RegionEditPanel(QWidget):
         self.group = QButtonGroup(self)
         self.group.setExclusive(True)
         self.tool_buttons: dict[str, QPushButton] = {}
-        for key, text in (("pan", "Рука"), ("recolor", "Змінити колір"), ("merge", "Злити із сусідньою"),
-                          ("smooth", "Згладити ділянку"), ("palette", "Замінити колір усюди"), ("polygon", "Зафарбувати полігон")):
+        for key, text in (("pan", tr("Рука")), ("recolor", tr("Змінити колір")), ("merge", tr("Злити із сусідньою")),
+                          ("smooth", tr("Згладити ділянку")), ("palette", tr("Замінити колір усюди")), ("polygon", tr("Зафарбувати полігон"))):
             b = QPushButton(text)
             b.setCheckable(True)
             b.clicked.connect(lambda _=False, k=key: self.set_tool(k))
@@ -158,18 +159,18 @@ class RegionEditPanel(QWidget):
             self.tool_buttons[key] = b
             bar.addWidget(b)
         self.tool_buttons["pan"].setChecked(True)
-        bar.addWidget(QLabel("Сила:"))
+        bar.addWidget(QLabel(tr("Сила:")))
         self.spn_smooth = QSpinBox()
         self.spn_smooth.setRange(1, 25)
         self.spn_smooth.setValue(3)
-        self.spn_smooth.setToolTip("Радіус згладжування в пікселях розбиття: більше число --- сильніше згладжування")
+        self.spn_smooth.setToolTip(tr("Радіус згладжування в пікселях розбиття: більше число --- сильніше згладжування"))
         bar.addWidget(self.spn_smooth)
-        bar.addWidget(QLabel("Колір:"))
+        bar.addWidget(QLabel(tr("Колір:")))
         self.cmb = QComboBox()
         self.cmb.setMinimumWidth(220)
         bar.addWidget(self.cmb)
-        self.btn_undo = QPushButton("↶ Скасувати правку")
-        self.btn_redo = QPushButton("↷ Повторити")
+        self.btn_undo = QPushButton(tr("↶ Скасувати правку"))
+        self.btn_redo = QPushButton(tr("↷ Повторити"))
         self.btn_undo.clicked.connect(self.undoRequested)
         self.btn_redo.clicked.connect(self.redoRequested)
         bar.addWidget(self.btn_undo)
@@ -230,7 +231,7 @@ class RegionEditPanel(QWidget):
         elif self.tool == "merge":
             if self._first is None:
                 self._first = (x, y)
-                self.lbl.setText("Ділянку вибрано (рожева). Тепер клікніть по сусідній ділянці, з якою її злити. Esc --- скасувати.")
+                self.lbl.setText(tr("Ділянку вибрано (рожева). Тепер клікніть по сусідній ділянці, з якою її злити. Esc --- скасувати."))
                 self.highlightRequested(x, y)
             else:
                 (x0, y0), self._first = self._first, None

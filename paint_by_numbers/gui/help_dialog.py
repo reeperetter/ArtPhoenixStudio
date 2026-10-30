@@ -8,10 +8,13 @@ from PySide6.QtWidgets import (QDialog, QHBoxLayout, QLineEdit, QListWidget, QLi
                                QVBoxLayout)
 
 from ..export.pdf import resource_dir
+from ..i18n import tr
 
 
 def manual_path() -> Path:
-    return resource_dir() / "assets" / "help" / "manual_uk.md"
+    from .. import i18n
+    f = resource_dir() / "assets" / "help" / f"manual_{i18n.current()}.md"
+    return f if f.is_file() else resource_dir() / "assets" / "help" / "manual_uk.md"
 
 
 def load_sections(path: Path | None = None) -> list[tuple[str, str]]:
@@ -29,12 +32,12 @@ def load_sections(path: Path | None = None) -> list[tuple[str, str]]:
 class HelpDialog(QDialog):
     def __init__(self, parent=None, section: str | None = None):
         super().__init__(parent)
-        self.setWindowTitle("Інструкція")
+        self.setWindowTitle(tr("Інструкція"))
         self.resize(980, 680)
         self.sections = load_sections()
         v = QVBoxLayout(self)
         self.search = QLineEdit()
-        self.search.setPlaceholderText("Пошук в інструкції…")
+        self.search.setPlaceholderText(tr("Пошук в інструкції…"))
         self.search.setClearButtonEnabled(True)
         self.search.textChanged.connect(self._filter)
         v.addWidget(self.search)
@@ -70,7 +73,7 @@ class HelpDialog(QDialog):
             if q:
                 self.view.find(self.search.text().strip())
         else:
-            self.view.setMarkdown("*Нічого не знайдено.*")
+            self.view.setMarkdown(tr("*Нічого не знайдено.*"))
 
     def _show(self, row: int) -> None:
         if 0 <= row < len(self._visible):

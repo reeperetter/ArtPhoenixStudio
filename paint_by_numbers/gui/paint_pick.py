@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (QColorDialog, QDialog, QDialogButtonBox, QHBoxLay
                                QListWidgetItem, QPushButton, QVBoxLayout)
 
 from ..edit import hex_to_lab
+from ..i18n import tr
 
 
 def _swatch(hx: str, size: int = 22) -> QIcon:
@@ -27,12 +28,12 @@ class PaintPickDialog(QDialog):
         row = QHBoxLayout()
         cur = QLabel()
         cur.setPixmap(_swatch(current_hex, 36).pixmap(36, 36))
-        row.addWidget(QLabel("Поточний колір:"))
+        row.addWidget(QLabel(tr("Поточний колір:")))
         row.addWidget(cur)
         row.addStretch(1)
         v.addLayout(row)
         self.search = QLineEdit()
-        self.search.setPlaceholderText("Пошук за кодом або назвою")
+        self.search.setPlaceholderText(tr("Пошук за кодом або назвою"))
         self.search.textChanged.connect(self._filter)
         self.lst = QListWidget()
         self.lst.itemDoubleClicked.connect(lambda _i: self.accept())
@@ -45,14 +46,14 @@ class PaintPickDialog(QDialog):
             it.setData(0x100, len(self._stock) - 1)
             self.lst.addItem(it)
         if catalog:
-            v.addWidget(QLabel("Фарби зі складу:"))
+            v.addWidget(QLabel(tr("Фарби зі складу:")))
             v.addWidget(self.search)
             v.addWidget(self.lst, 1)
         else:
-            v.addWidget(QLabel("Каталог фарб не задано: оберіть власний колір."))
+            v.addWidget(QLabel(tr("Каталог фарб не задано: оберіть власний колір.")))
             self.search.hide()
             self.lst.hide()
-        self.btn_custom = QPushButton("Власний колір…")
+        self.btn_custom = QPushButton(tr("Власний колір…"))
         self.btn_custom.clicked.connect(self._custom)
         v.addWidget(self.btn_custom)
         bb = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
@@ -67,7 +68,7 @@ class PaintPickDialog(QDialog):
             self.lst.item(i).setHidden(bool(t) and t not in self.lst.item(i).text().lower())
 
     def _custom(self) -> None:
-        c = QColorDialog.getColor(QColor(self._current_hex), self, "Власний колір")
+        c = QColorDialog.getColor(QColor(self._current_hex), self, tr("Власний колір"))
         if c.isValid():
             self.result_lab = hex_to_lab(c.name())
             super().accept()

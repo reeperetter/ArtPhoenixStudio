@@ -12,11 +12,12 @@ from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog,
 
 from ..batch import build_items, exit_code, run_batch, write_report
 from ..settings import Settings
+from ..i18n import tr
 
-STATUS_TEXT = {"pending": "очікує", "ok": "готово", "blocked": "заблоковано", "error": "помилка",
-               "skipped": "пропущено", "cancelled": "перервано"}
+STATUS_TEXT = {"pending": tr("очікує"), "ok": tr("готово"), "blocked": tr("заблоковано"), "error": tr("помилка"),
+               "skipped": tr("пропущено"), "cancelled": tr("перервано")}
 STATUS_COLOR = {"ok": "#2e7d32", "blocked": "#e68900", "error": "#d32f2f", "skipped": "#6b6b6b", "cancelled": "#6b6b6b"}
-COLS = ["Файл", "Замовлення", "Статус", "Ділянок", "Кольорів", "Ємностей", "Примітка"]
+COLS = [tr("Файл"), tr("Замовлення"), tr("Статус"), tr("Ділянок"), tr("Кольорів"), tr("Ємностей"), tr("Примітка")]
 
 
 class BatchJob(QThread):
@@ -44,7 +45,7 @@ class BatchJob(QThread):
 class BatchDialog(QDialog):
     def __init__(self, base: Settings, prefs, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Пакетна обробка")
+        self.setWindowTitle(tr("Пакетна обробка"))
         self.resize(900, 600)
         self.base = dataclasses.replace(base, zones=[])      # зони стосуються конкретного фото: беруться з <імʼя>.zones.json
         self.prefs = prefs
@@ -56,44 +57,44 @@ class BatchDialog(QDialog):
         v = QVBoxLayout(self)
         top = QFormLayout()
         row = QHBoxLayout()
-        self.lbl_src = QLabel("не вибрано")
-        b1, b2 = QPushButton("Папка з фото…"), QPushButton("Маніфест CSV…")
+        self.lbl_src = QLabel(tr("не вибрано"))
+        b1, b2 = QPushButton(tr("Папка з фото…")), QPushButton(tr("Маніфест CSV…"))
         b1.clicked.connect(self.pick_folder)
         b2.clicked.connect(self.pick_manifest)
         row.addWidget(b1)
         row.addWidget(b2)
         row.addWidget(self.lbl_src, 1)
-        top.addRow("Джерело", row)
+        top.addRow(tr("Джерело"), row)
         row = QHBoxLayout()
-        self.lbl_out = QLabel(prefs.get("last_save_dir") or "не вибрано")
-        b3 = QPushButton("Куди зберегти…")
+        self.lbl_out = QLabel(prefs.get("last_save_dir") or tr("не вибрано"))
+        b3 = QPushButton(tr("Куди зберегти…"))
         b3.clicked.connect(self.pick_out)
         row.addWidget(b3)
         row.addWidget(self.lbl_out, 1)
-        top.addRow("Результат", row)
+        top.addRow(tr("Результат"), row)
         self.cmb_num = QComboBox()
-        self.cmb_num.addItem("за імʼям файлу", "name")
-        self.cmb_num.addItem("послідовні (000001, 000002…)", "sequential")
+        self.cmb_num.addItem(tr("за імʼям файлу"), "name")
+        self.cmb_num.addItem(tr("послідовні (000001, 000002…)"), "sequential")
         self.ed_prefix = QLineEdit()
         self.sp_start = QSpinBox(minimum=1, maximum=999999, value=1)
         r2 = QHBoxLayout()
-        for w in (self.cmb_num, QLabel("префікс"), self.ed_prefix, QLabel("початок"), self.sp_start):
+        for w in (self.cmb_num, QLabel(tr("префікс")), self.ed_prefix, QLabel(tr("початок")), self.sp_start):
             r2.addWidget(w)
-        top.addRow("Номери замовлень", r2)
+        top.addRow(tr("Номери замовлень"), r2)
         for sig in (self.cmb_num.currentIndexChanged, self.ed_prefix.editingFinished, self.sp_start.valueChanged):
             sig.connect(lambda *_: self.refresh_items() if self.source and not self.job else None)
-        self.cb_compare = QCheckBox("для кожного фото підбирати найкращий варіант (повільніше: до 9 прогонів на фото)")
-        self.cb_skip = QCheckBox("пропускати замовлення, які вже готові")
+        self.cb_compare = QCheckBox(tr("для кожного фото підбирати найкращий варіант (повільніше: до 9 прогонів на фото)"))
+        self.cb_skip = QCheckBox(tr("пропускати замовлення, які вже готові"))
         self.cb_skip.setChecked(True)
         self.sp_jobs = QSpinBox(minimum=1, maximum=16, value=2)
-        self.sp_jobs.setToolTip("Скільки фото обробляти одночасно (кожне --- в окремому процесі)")
+        self.sp_jobs.setToolTip(tr("Скільки фото обробляти одночасно (кожне --- в окремому процесі)"))
         top.addRow(self.cb_compare)
         top.addRow(self.cb_skip)
-        top.addRow("Процесів", self.sp_jobs)
+        top.addRow(tr("Процесів"), self.sp_jobs)
         v.addLayout(top)
-        hint = QLabel("Налаштування (режим, кольори, розмір, фарби, норма покриття) беруться з головного вікна. "
+        hint = QLabel(tr("Налаштування (режим, кольори, розмір, фарби, норма покриття) беруться з головного вікна. "
                       "Зони: файл <імʼя фото>.zones.json поруч із фото. У маніфесті можна задати для кожного фото "
-                      "order, name, width_mm, height_mm, mode, colors, zones.")
+                      "order, name, width_mm, height_mm, mode, colors, zones."))
         hint.setWordWrap(True)
         hint.setStyleSheet("color: #666;")
         v.addWidget(hint)
@@ -110,12 +111,12 @@ class BatchDialog(QDialog):
         v.addWidget(self.progress)
         v.addWidget(self.lbl_status)
         btns = QHBoxLayout()
-        self.btn_start = QPushButton("Почати")
+        self.btn_start = QPushButton(tr("Почати"))
         self.btn_start.setStyleSheet("font-weight: bold;")
         self.btn_start.clicked.connect(self.start)
-        self.btn_cancel = QPushButton("Перервати")
+        self.btn_cancel = QPushButton(tr("Перервати"))
         self.btn_cancel.clicked.connect(self.cancel)
-        self.btn_close = QPushButton("Закрити")
+        self.btn_close = QPushButton(tr("Закрити"))
         self.btn_close.clicked.connect(self.close)
         for b in (self.btn_start, self.btn_cancel, self.btn_close):
             btns.addWidget(b)
@@ -124,17 +125,17 @@ class BatchDialog(QDialog):
 
     # ---- вибір джерела
     def pick_folder(self):
-        d = QFileDialog.getExistingDirectory(self, "Папка з фото", self.prefs.get("last_photo_dir"))
+        d = QFileDialog.getExistingDirectory(self, tr("Папка з фото"), self.prefs.get("last_photo_dir"))
         if d:
             self.set_source(d)
 
     def pick_manifest(self):
-        f, _ = QFileDialog.getOpenFileName(self, "Маніфест", self.prefs.get("last_photo_dir"), "CSV (*.csv *.txt)")
+        f, _ = QFileDialog.getOpenFileName(self, tr("Маніфест"), self.prefs.get("last_photo_dir"), "CSV (*.csv *.txt)")
         if f:
             self.set_source(f)
 
     def pick_out(self):
-        d = QFileDialog.getExistingDirectory(self, "Куди зберегти замовлення", self.prefs.get("last_save_dir"))
+        d = QFileDialog.getExistingDirectory(self, tr("Куди зберегти замовлення"), self.prefs.get("last_save_dir"))
         if d:
             self.set_out(d)
 
@@ -152,20 +153,20 @@ class BatchDialog(QDialog):
             self.items = build_items(self.source, self.base, self.cmb_num.currentData(), self.sp_start.value(),
                                      self.ed_prefix.text())
         except ValueError as e:
-            QMessageBox.warning(self, "Пакетна обробка", str(e))
+            QMessageBox.warning(self, tr("Пакетна обробка"), tr(str(e)))
             self.items = []
         self.rows = []
         self.tbl.setRowCount(len(self.items))
         for i, it in enumerate(self.items):
             self._set_row(i, {"file": it.photo.name, "order": it.order, "status": "error" if it.error else "pending",
                               "regions": "", "colors": "", "containers": "", "message": it.error})
-        self.lbl_status.setText(f"Фото: {len(self.items)}" + (f", з помилками: {sum(1 for i in self.items if i.error)}"
+        self.lbl_status.setText(tr(f"Фото: {len(self.items)}") + (tr(f", з помилками: {sum(1 for i in self.items if i.error)}")
                                                                if any(i.error for i in self.items) else ""))
         self._update_buttons()
 
     def _set_row(self, i: int, r: dict) -> None:
         vals = [r["file"], r["order"], STATUS_TEXT.get(r["status"], r["status"]), r.get("regions", ""),
-                r.get("colors", ""), r.get("containers", ""), r.get("message", "")]
+                r.get("colors", ""), r.get("containers", ""), tr(r.get("message", ""))]
         for j, v in enumerate(vals):
             it = QTableWidgetItem(str(v))
             if j == 2 and r["status"] in STATUS_COLOR:
@@ -175,7 +176,7 @@ class BatchDialog(QDialog):
     # ---- запуск
     def _update_buttons(self) -> None:
         running = self.job is not None
-        ready = bool(self.items) and self.lbl_out.text() not in ("", "не вибрано") and not running
+        ready = bool(self.items) and self.lbl_out.text() not in ("", tr("не вибрано")) and not running
         self.btn_start.setEnabled(ready)
         self.btn_cancel.setEnabled(running)
         self.btn_close.setEnabled(not running)
@@ -194,14 +195,14 @@ class BatchDialog(QDialog):
         self.job.failed.connect(self._failed)
         self.job.finished.connect(self._job_finished)
         self.prefs.set("last_save_dir", out)
-        self.lbl_status.setText("Обробка…")
+        self.lbl_status.setText(tr("Обробка…"))
         self.job.start()
         self._update_buttons()
 
     def cancel(self) -> None:
         if self.job:
             self.job.cancel()
-            self.lbl_status.setText("Переривання: поточні фото буде дооброблено…")
+            self.lbl_status.setText(tr("Переривання: поточні фото буде дооброблено…"))
 
     def _progressed(self, done: int, total: int, row: dict) -> None:
         self.progress.setValue(done)
@@ -209,7 +210,7 @@ class BatchDialog(QDialog):
             if it.photo.name == row["file"] and it.order == row["order"]:
                 self._set_row(i, row)
                 break
-        self.lbl_status.setText(f"{done} з {total}")
+        self.lbl_status.setText(tr(f"{done} з {total}"))
 
     def _done(self, rows: list[dict]) -> None:
         self.rows = rows
@@ -218,28 +219,28 @@ class BatchDialog(QDialog):
         rep = write_report(rows, self.lbl_out.text(), self.base)
         ok = sum(r["status"] == "ok" for r in rows)
         bad = sum(r["status"] in ("error", "blocked") for r in rows)
-        self.lbl_status.setText(f"Готово: {ok} з {len(rows)}" + (f", потребують уваги: {bad}" if bad else "")
-                                + f". Звіт: {rep}")
+        self.lbl_status.setText(tr(f"Готово: {ok} з {len(rows)}") + (tr(f", потребують уваги: {bad}") if bad else "")
+                                + tr(f". Звіт: {rep}"))
         try:
             from ..journal import build_journal, write_journal_files
             write_journal_files(build_journal(self.lbl_out.text()), self.lbl_out.text())
-            self.lbl_status.setText(self.lbl_status.text() + ". Журнал: orders_journal.xlsx")
+            self.lbl_status.setText(self.lbl_status.text() + tr(". Журнал: orders_journal.xlsx"))
         except Exception as e:           # журнал допоміжний: збій не має ламати підсумок пакетної обробки
-            self.lbl_status.setText(self.lbl_status.text() + f". Журнал не створено: {e}")
+            self.lbl_status.setText(self.lbl_status.text() + tr(f". Журнал не створено: {e}"))
         if self.base.catalog and ok:
             from ..purchase import PurchaseError, build_purchase_list, write_purchase_files
             try:
                 data = build_purchase_list(self.lbl_out.text())
                 write_purchase_files(data, self.lbl_out.text())
-                self.lbl_status.setText(self.lbl_status.text() + f". Закупівля: {data['totals']['containers']} ємн. "
-                                        f"({data['totals']['paints']} фарб) --- purchase_list.xlsx")
+                self.lbl_status.setText(self.lbl_status.text() + tr(f". Закупівля: {data['totals']['containers']} ємн. "
+                                        f"({data['totals']['paints']} фарб) --- purchase_list.xlsx"))
             except (PurchaseError, OSError) as e:
-                self.lbl_status.setText(self.lbl_status.text() + f". Закупівля не створена: {e}")
+                self.lbl_status.setText(self.lbl_status.text() + tr(f". Закупівля не створена: {e}"))
         elif ok:
-            self.lbl_status.setText(self.lbl_status.text() + ". Список закупівлі потребує каталогу фарб.")
+            self.lbl_status.setText(self.lbl_status.text() + tr(". Список закупівлі потребує каталогу фарб."))
 
     def _failed(self, msg: str) -> None:
-        QMessageBox.critical(self, "Пакетна обробка", msg)
+        QMessageBox.critical(self, tr("Пакетна обробка"), tr(msg))
 
     def _job_finished(self) -> None:
         self.job = None

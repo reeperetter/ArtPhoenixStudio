@@ -4,17 +4,19 @@ from __future__ import annotations
 
 import copy
 import json
+import sys
 from pathlib import Path
 
 import numpy as np
 from PySide6.QtCore import QThread, QTimer, Qt, Signal
-from PySide6.QtGui import QAction, QBrush, QColor, QKeySequence
-from PySide6.QtWidgets import (QAbstractItemView, QButtonGroup, QCheckBox, QComboBox, QDoubleSpinBox, QFileDialog,
+from PySide6.QtGui import QAction, QActionGroup, QBrush, QColor, QKeySequence
+from PySide6.QtWidgets import (QAbstractItemView, QApplication, QButtonGroup, QCheckBox, QComboBox, QDoubleSpinBox, QFileDialog,
                                QFormLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QListWidget,
                                QListWidgetItem, QMainWindow, QMenu, QMessageBox, QProgressBar, QPushButton, QScrollArea,
                                QSpinBox, QSplitter, QTableWidget, QTableWidgetItem, QTabWidget, QToolButton,
                                QVBoxLayout, QWidget)
 
+from .. import i18n
 from . import branding, wheel_guard
 from ..compare import default_variants, select_best
 from ..generate import run_pipeline
@@ -36,7 +38,10 @@ from ..edit import (EditError, Segmentation, add_color, merge_into, paint_polygo
                     recolor_region, set_palette_color, smooth_region)
 from .prefs import Prefs
 
-from ..settings import MODE_NAMES_UK as MODE_NAMES
+from ..i18n import tr
+from ..settings import MODE_NAMES_UK
+
+MODE_NAMES = {k: tr(v) for k, v in MODE_NAMES_UK.items()}
 SEV_COLOR = {"critical": "#d32f2f", "warning": "#e68900", "info": "#6b6b6b"}
 
 
@@ -77,7 +82,7 @@ class MainWindow(QMainWindow):
         self._build_ui()
         self._build_menu()
         wheel_guard.install(self)                      # колесо змінює число лише в обраному (фокусному) полі
-        author = QLabel(f"автор: {branding.AUTHOR}")          # ненав'язливо, у куті рядка стану
+        author = QLabel(tr(f"автор: {branding.AUTHOR}"))          # ненав'язливо, у куті рядка стану
         author.setStyleSheet("color: gray; font-size: 8pt; padding-right: 6px;")
         self.statusBar().addPermanentWidget(author)
         self._load_prefs()
@@ -97,8 +102,8 @@ class MainWindow(QMainWindow):
         head = QHBoxLayout()
         logo = QLabel()
         logo.setPixmap(branding.logo_pixmap(44))
-        title = QLabel(f"<b style='font-size:16pt'>{branding.APP_NAME}</b><br>"
-                       "<span style='color:gray'>картини за номерами з фото</span>")
+        title = QLabel(tr(f"<b style='font-size:16pt'>{branding.APP_NAME}</b><br>"
+                       "<span style='color:gray'>картини за номерами з фото</span>"))
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         head.addStretch(1)                              # логотип і назва по центру блоку за будь-якої ширини вікна
         head.addWidget(logo)
@@ -107,15 +112,15 @@ class MainWindow(QMainWindow):
         lv.addLayout(head)
 
         # 1. фото
-        g = QGroupBox("1. Фото")
+        g = QGroupBox(tr("1. Фото"))
         f = QVBoxLayout(g)
-        self.btn_open = QPushButton("Відкрити фото…")
+        self.btn_open = QPushButton(tr("Відкрити фото…"))
         self.btn_open.clicked.connect(self.open_photo)
-        self.btn_open_proj = QPushButton("Відкрити проєкт (папку замовлення)…")
-        self.btn_open_proj.setToolTip("Повертає збережене замовлення без перерахунку: налаштування, зони, фарби й результат")
+        self.btn_open_proj = QPushButton(tr("Відкрити проєкт (папку замовлення)…"))
+        self.btn_open_proj.setToolTip(tr("Повертає збережене замовлення без перерахунку: налаштування, зони, фарби й результат"))
         self.btn_open_proj.clicked.connect(self.open_project_dialog)
         self.original_name: str | None = None
-        self.lbl_photo = QLabel("файл не вибрано")
+        self.lbl_photo = QLabel(tr("файл не вибрано"))
         self.lbl_photo.setWordWrap(True)
         f.addWidget(self.btn_open)
         f.addWidget(self.btn_open_proj)
@@ -123,79 +128,79 @@ class MainWindow(QMainWindow):
         lv.addWidget(g)
 
         # 2. полотно і режим
-        g = QGroupBox("2. Полотно і режим")
+        g = QGroupBox(tr("2. Полотно і режим"))
         f = QFormLayout(g)
-        self.sp_w = QDoubleSpinBox(maximum=3000, minimum=50, value=300, suffix=" мм", decimals=0)
-        self.cb_auto_h = QCheckBox("висота за пропорціями фото")
+        self.sp_w = QDoubleSpinBox(maximum=3000, minimum=50, value=300, suffix=tr(" мм"), decimals=0)
+        self.cb_auto_h = QCheckBox(tr("висота за пропорціями фото"))
         self.cb_auto_h.setChecked(True)
-        self.sp_h = QDoubleSpinBox(maximum=3000, minimum=50, value=400, suffix=" мм", decimals=0)
+        self.sp_h = QDoubleSpinBox(maximum=3000, minimum=50, value=400, suffix=tr(" мм"), decimals=0)
         self.sp_h.setEnabled(False)
         self.cb_auto_h.toggled.connect(lambda c: self.sp_h.setEnabled(not c))
         self.cmb_mode = QComboBox()
         for k in PRESETS:
             self.cmb_mode.addItem(MODE_NAMES[k], k)
         self.cmb_mode.setCurrentIndex(list(PRESETS).index("balanced"))
-        self.cb_auto_colors = QCheckBox("кількість кольорів за режимом")
+        self.cb_auto_colors = QCheckBox(tr("кількість кольорів за режимом"))
         self.cb_auto_colors.setChecked(True)
         self.sp_colors = QSpinBox(minimum=4, maximum=64, value=24)
         self.sp_colors.setEnabled(False)
         self.cb_auto_colors.toggled.connect(lambda c: self.sp_colors.setEnabled(not c))
-        f.addRow("Ширина", self.sp_w)
+        f.addRow(tr("Ширина"), self.sp_w)
         f.addRow(self.cb_auto_h)
-        f.addRow("Висота", self.sp_h)
-        f.addRow("Режим", self.cmb_mode)
+        f.addRow(tr("Висота"), self.sp_h)
+        f.addRow(tr("Режим"), self.cmb_mode)
         f.addRow(self.cb_auto_colors)
-        f.addRow("Кольорів", self.sp_colors)
+        f.addRow(tr("Кольорів"), self.sp_colors)
         lv.addWidget(g)
         for w in (self.sp_w, self.sp_h):
             w.valueChanged.connect(self._schedule_reload)
         self.cb_auto_h.toggled.connect(self._schedule_reload)
 
         # 3. фарби
-        g = QGroupBox("3. Фарби (необовʼязково)")
+        g = QGroupBox(tr("3. Фарби (необовʼязково)"))
         f = QFormLayout(g)
         row = QHBoxLayout()
-        self.btn_cat = QPushButton("Каталог…")
+        self.btn_cat = QPushButton(tr("Каталог…"))
         self.btn_cat.clicked.connect(self.load_catalog_file)
-        self.btn_cat_clear = QPushButton("Скинути")
+        self.btn_cat_clear = QPushButton(tr("Скинути"))
         self.btn_cat_clear.clicked.connect(self.clear_catalog)
-        self.btn_cat_starter = QPushButton("Стартова (100)")
-        self.btn_cat_starter.setToolTip("Вбудована ЧЕРНЕТКА складської палітри для портретів (кольори екрана, не реальні фарби)")
+        self.btn_cat_starter = QPushButton(tr("Стартова (100)"))
+        self.btn_cat_starter.setToolTip(tr("Вбудована ЧЕРНЕТКА складської палітри для портретів (кольори екрана, не реальні фарби)"))
         self.btn_cat_starter.clicked.connect(self.load_starter_palette)
         row.addWidget(self.btn_cat)
         row.addWidget(self.btn_cat_starter)
         row.addWidget(self.btn_cat_clear)
         self.catalog: list[dict] = []
-        self.lbl_cat = QLabel("каталог не задано (коди P-001…)")
-        self.sp_cov = QDoubleSpinBox(maximum=1e7, minimum=0, decimals=0, singleStep=500, suffix=" мм²")
-        self.sp_cov.setSpecialValueText("не задано")
+        self.lbl_cat = QLabel(tr("каталог не задано (коди P-001…)"))
+        self.sp_cov = QDoubleSpinBox(maximum=1e7, minimum=0, decimals=0, singleStep=500, suffix=tr(" мм²"))
+        self.sp_cov.setSpecialValueText(tr("не задано"))
         self.sp_k = QDoubleSpinBox(minimum=1.0, maximum=10.0, value=1.3, singleStep=0.1, decimals=2)
-        self.cb_cov_ok = QCheckBox("норму N підтверджено фізичними тестами")
+        self.cb_cov_ok = QCheckBox(tr("норму N підтверджено фізичними тестами"))
         self.sp_detail = QDoubleSpinBox(minimum=0.5, maximum=3.0, value=1.0, singleStep=0.1, decimals=2)
-        self.sp_detail.setToolTip("Більше = дрібніші ділянки й цифри (цифри не менші за 1,6 мм). 1,0 = за режимом.\n"
-                                  "Перевіряйте читабельність цифр на пробному друку.")
-        self.cb_auto_detail = QCheckBox("автоматично деталізувати обличчя й шкіру")
+        self.sp_detail.setToolTip(tr("Більше = дрібніші ділянки й цифри (цифри не менші за 1,6 мм). 1,0 = за режимом.\n"
+                                  "Перевіряйте читабельність цифр на пробному друку."))
+        self.cb_auto_detail = QCheckBox(tr("автоматично деталізувати обличчя й шкіру"))
         self.cb_auto_detail.setChecked(True)
         f.addRow(row)
         f.addRow(self.lbl_cat)
-        f.addRow("Покриття N однієї ємності", self.sp_cov)
-        f.addRow("Коефіцієнт запасу K", self.sp_k)
-        f.addRow("Деталізація", self.sp_detail)
+        f.addRow(tr("Покриття N однієї ємності"), self.sp_cov)
+        f.addRow(tr("Коефіцієнт запасу K"), self.sp_k)
+        f.addRow(tr("Деталізація"), self.sp_detail)
         f.addRow(self.cb_auto_detail)
         f.addRow(self.cb_cov_ok)
         lv.addWidget(g)
 
         # 4. зони
-        g = QGroupBox("4. Зони пріоритету")
+        g = QGroupBox(tr("4. Зони пріоритету"))
         v = QVBoxLayout(g)
         tools = QHBoxLayout()
         self.tool_group = QButtonGroup(self)
         self.tool_group.setExclusive(True)
-        for key, text, tip in (("pan", "✋", "Рука: тягніть зображення (колесо миші --- масштаб, подвійний клік --- вмістити; середня кнопка рухає в будь-якому режимі)"),
-                               ("select", "↖", "Вибір і редагування: клік --- вибрати; тягніть зону, щоб посунути, білі ручки --- змінити розмір (у багатокутника --- вершини); Delete --- видалити"),
-                               ("rect", "▭", "Прямокутна зона"),
-                               ("ellipse", "◯", "Еліптична зона"),
-                               ("polygon", "⬠", "Багатокутник: клік --- точка; подвійний клік, Enter або права кнопка --- завершити")):
+        for key, text, tip in (("pan", "✋", tr("Рука: тягніть зображення (колесо миші --- масштаб, подвійний клік --- вмістити; середня кнопка рухає в будь-якому режимі)")),
+                               ("select", "↖", tr("Вибір і редагування: клік --- вибрати; тягніть зону, щоб посунути, білі ручки --- змінити розмір (у багатокутника --- вершини); Delete --- видалити")),
+                               ("rect", "▭", tr("Прямокутна зона")),
+                               ("ellipse", "◯", tr("Еліптична зона")),
+                               ("polygon", "⬠", tr("Багатокутник: клік --- точка; подвійний клік, Enter або права кнопка --- завершити"))):
             b = QToolButton(text=text, checkable=True, toolTip=tip)
             b.setMinimumWidth(38)
             b.setProperty("tool", key)
@@ -214,24 +219,24 @@ class MainWindow(QMainWindow):
         self.ed_zname.editingFinished.connect(self._zone_edited)
         self.sp_zw = QDoubleSpinBox(minimum=0.1, maximum=MAX_WEIGHT, value=2.0, singleStep=0.5, decimals=1)
         self.sp_zw.valueChanged.connect(self._zone_edited)
-        self.sp_zw.setToolTip("0.1…10: що більше, то більше деталей у зоні (та більше ділянок без місця для номера)")
-        zf.addRow("Назва", self.ed_zname)
-        zf.addRow("Вага", self.sp_zw)
+        self.sp_zw.setToolTip(tr("0.1…10: що більше, то більше деталей у зоні (та більше ділянок без місця для номера)"))
+        zf.addRow(tr("Назва"), self.ed_zname)
+        zf.addRow(tr("Вага"), self.sp_zw)
         v.addLayout(zf)
         zu_row = QHBoxLayout()
-        self.btn_undo = QPushButton("↶ Відмінити")
+        self.btn_undo = QPushButton(tr("↶ Відмінити"))
         self.btn_undo.clicked.connect(self.undo_zones)
-        self.btn_redo = QPushButton("↷ Повторити")
+        self.btn_redo = QPushButton(tr("↷ Повторити"))
         self.btn_redo.clicked.connect(self.redo_zones)
         zu_row.addWidget(self.btn_undo)
         zu_row.addWidget(self.btn_redo)
         v.addLayout(zu_row)
         zb = QHBoxLayout()
-        self.btn_zdel = QPushButton("Видалити")
+        self.btn_zdel = QPushButton(tr("Видалити"))
         self.btn_zdel.clicked.connect(self.delete_zone)
-        self.btn_zload = QPushButton("Із файлу…")
+        self.btn_zload = QPushButton(tr("Із файлу…"))
         self.btn_zload.clicked.connect(self.load_zones)
-        self.btn_zsave = QPushButton("У файл…")
+        self.btn_zsave = QPushButton(tr("У файл…"))
         self.btn_zsave.clicked.connect(self.save_zones)
         for b in (self.btn_zdel, self.btn_zload, self.btn_zsave):
             zb.addWidget(b)
@@ -239,9 +244,9 @@ class MainWindow(QMainWindow):
         lv.addWidget(g)
 
         # 5. дії
-        g = QGroupBox("5. Результат")
+        g = QGroupBox(tr("5. Результат"))
         v = QVBoxLayout(g)
-        self.btn_gen = QPushButton("Створити превʼю")
+        self.btn_gen = QPushButton(tr("Створити превʼю"))
         self.btn_gen.setMinimumHeight(52)                        # велика зелена кнопка: головна дія, її має бути добре видно
         self.btn_gen.setStyleSheet(
             "QPushButton { font-size: 13pt; font-weight: bold; color: #1b3d1f; background-color: #a5d6a7;"
@@ -250,34 +255,34 @@ class MainWindow(QMainWindow):
             "QPushButton:pressed { background-color: #8fc892; }"
             "QPushButton:disabled { background-color: #dcebdc; color: #8a9a8a; border-color: #c5d6c5; }")
         self.btn_gen.clicked.connect(self.generate)
-        self.btn_cmp = QPushButton("Підібрати найкращий варіант")
-        self.btn_cmp.setToolTip("Перебирає режими й кількості кольорів (до 9 варіантів, кілька хвилин), "
-                                "обирає найкращий за формулою з compare.py і будує його превʼю")
+        self.btn_cmp = QPushButton(tr("Підібрати найкращий варіант"))
+        self.btn_cmp.setToolTip(tr("Перебирає режими й кількості кольорів (до 9 варіантів, кілька хвилин), "
+                                "обирає найкращий за формулою з compare.py і будує його превʼю"))
         self.btn_cmp.clicked.connect(self.compare_variants)
         v.addWidget(self.btn_cmp)
-        self.btn_batch = QPushButton("Пакетна обробка (багато фото)…")
-        self.btn_batch.setToolTip("Обробити папку з фото або CSV-маніфест: кожне фото --- окреме замовлення")
+        self.btn_batch = QPushButton(tr("Пакетна обробка (багато фото)…"))
+        self.btn_batch.setToolTip(tr("Обробити папку з фото або CSV-маніфест: кожне фото --- окреме замовлення"))
         self.btn_batch.clicked.connect(self.open_batch)
         v.addWidget(self.btn_batch)
         f = QFormLayout()
         self.ed_order = QLineEdit("000001")
         self.ed_name = QLineEdit()
-        f.addRow("Номер замовлення", self.ed_order)
-        f.addRow("Назва проєкту", self.ed_name)
+        f.addRow(tr("Номер замовлення"), self.ed_order)
+        f.addRow(tr("Назва проєкту"), self.ed_name)
         self.ed_store = QLineEdit()
-        self.ed_store.setPlaceholderText("для макета клієнта (необов'язково)")
-        f.addRow("Назва магазину", self.ed_store)
+        self.ed_store.setPlaceholderText(tr("для макета клієнта (необов'язково)"))
+        f.addRow(tr("Назва магазину"), self.ed_store)
         self.print_profile: dict | None = None
-        self.btn_print = QPushButton("Параметри друку…")
-        self.btn_print.setToolTip("Припуск, загортання на підрамник, мітки різу, растр, розбиття на аркуші A4/A3")
+        self.btn_print = QPushButton(tr("Параметри друку…"))
+        self.btn_print.setToolTip(tr("Припуск, загортання на підрамник, мітки різу, растр, розбиття на аркуші A4/A3"))
         self.btn_print.clicked.connect(self.edit_print_profile)
-        self.lbl_print = QLabel("файли для друку: вимкнено")
+        self.lbl_print = QLabel(tr("файли для друку: вимкнено"))
         f.addRow(self.btn_print, self.lbl_print)
-        self.btn_save = QPushButton("Зберегти пакет…")
+        self.btn_save = QPushButton(tr("Зберегти пакет…"))
         self.btn_save.clicked.connect(self.save_package)
         self.progress = QProgressBar(maximumHeight=10, textVisible=False)
         self.progress.setRange(0, 1)
-        self.lbl_status = QLabel("Відкрийте фото")
+        self.lbl_status = QLabel(tr("Відкрийте фото"))
         self.lbl_status.setWordWrap(True)
         v.addWidget(self.btn_gen)
         v.addLayout(f)
@@ -305,13 +310,13 @@ class MainWindow(QMainWindow):
         self.view_color = ImageView()
         self.view_compare = ImageView()
         self.view_variants = ImageView()
-        self.tabs.addTab(self.canvas, "Фото і зони")
-        self.tabs.addTab(self.view_numbers, "Контури з номерами")
-        self.tabs.addTab(self.view_color, "Кольори")
-        self.tabs.addTab(self.view_compare, "Порівняння")
-        self.tabs.addTab(self.view_variants, "Варіанти")
+        self.tabs.addTab(self.canvas, tr("Фото і зони"))
+        self.tabs.addTab(self.view_numbers, tr("Контури з номерами"))
+        self.tabs.addTab(self.view_color, tr("Кольори"))
+        self.tabs.addTab(self.view_compare, tr("Порівняння"))
+        self.tabs.addTab(self.view_variants, tr("Варіанти"))
         self.edit_panel = RegionEditPanel()
-        self.tabs.insertTab(3, self.edit_panel, "Редагування ділянок")
+        self.tabs.insertTab(3, self.edit_panel, tr("Редагування ділянок"))
         self.seg: Segmentation | None = None
         self._choices: list = []
         self.seg_history = UndoStack(None, limit=30)
@@ -332,29 +337,29 @@ class MainWindow(QMainWindow):
         self.split_v.addWidget(self.tabs)
         rv.addWidget(self.split_v)
         self.tbl = QTableWidget(0, 8)
-        self.tbl.setHorizontalHeaderLabels(["№", "Колір", "Код", "Назва", "Площа, мм²", "Ділянок", "Ємностей", "мл"])
+        self.tbl.setHorizontalHeaderLabels(["№", tr("Колір"), tr("Код"), tr("Назва"), tr("Площа, мм²"), tr("Ділянок"), tr("Ємностей"), tr("мл")])
         self.tbl.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.tbl.verticalHeader().setVisible(False)
-        self.tbl.setToolTip("Подвійний клік по рядку: змінити цей колір палітри картини")
+        self.tbl.setToolTip(tr("Подвійний клік по рядку: змінити цей колір палітри картини"))
         self.tbl.cellDoubleClicked.connect(lambda row, _c: self._edit_palette_color(row))
         self.tbl.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.tbl.customContextMenuRequested.connect(self._tbl_menu)
         self.lst_warn = QListWidget()
-        self.lst_warn.setToolTip("Подвійний клік: відкрити пояснення кодів попереджень в інструкції")
-        self.lst_warn.itemDoubleClicked.connect(lambda _i: self.show_help("Попередження"))
+        self.lst_warn.setToolTip(tr("Подвійний клік: відкрити пояснення кодів попереджень в інструкції"))
+        self.lst_warn.itemDoubleClicked.connect(lambda _i: self.show_help(tr("Попередження")))
         self.tbl_var = QTableWidget(0, 9)
-        self.tbl_var.setHorizontalHeaderLabels(["Режим", "Кольорів", "Оцінка", "ΔE", "SSIM", "Ділянок",
-                                                "Без номера", "Виносок", "Статус"])
+        self.tbl_var.setHorizontalHeaderLabels([tr("Режим"), tr("Кольорів"), tr("Оцінка"), "ΔE", "SSIM", tr("Ділянок"),
+                                                tr("Без номера"), tr("Виносок"), tr("Статус")])
         self.tbl_var.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.tbl_var.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.tbl_var.verticalHeader().setVisible(False)
-        self.tbl_var.setToolTip("Подвійний клік: застосувати варіант і створити превʼю")
+        self.tbl_var.setToolTip(tr("Подвійний клік: застосувати варіант і створити превʼю"))
         self.tbl_var.cellDoubleClicked.connect(self._apply_variant)
         self.variant_rows: list[dict] = []
         bottom = QTabWidget()
-        bottom.addTab(self.tbl, "Специфікація фарб")
-        bottom.addTab(self.lst_warn, "Попередження")
-        bottom.addTab(self.tbl_var, "Варіанти")
+        bottom.addTab(self.tbl, tr("Специфікація фарб"))
+        bottom.addTab(self.lst_warn, tr("Попередження"))
+        bottom.addTab(self.tbl_var, tr("Варіанти"))
         self.bottom = bottom
         self.split_v.addWidget(bottom)
         self.split_v.setStretchFactor(0, 4)
@@ -378,37 +383,60 @@ class MainWindow(QMainWindow):
         self.cmb_mode.currentIndexChanged.connect(self._invalidate)
 
     def _build_menu(self) -> None:
-        m = self.menuBar().addMenu("Файл")
-        for text, fn, key in (("Відкрити фото…", self.open_photo, QKeySequence.StandardKey.Open),
-                              ("Відкрити проєкт (папку замовлення)…", self.open_project_dialog, QKeySequence("Ctrl+Shift+O")),
-                              ("Пакетна обробка…", self.open_batch, QKeySequence("Ctrl+B")),
-                              ("Зони із файлу…", self.load_zones, None), ("Зони у файл…", self.save_zones, None),
-                              ("Створити превʼю", self.generate, QKeySequence("Ctrl+R")),
-                              ("Зберегти пакет…", self.save_package, QKeySequence.StandardKey.Save),
-                              ("Скинути збережені налаштування", self.reset_prefs, None),
-                              ("Вийти", self.close, QKeySequence.StandardKey.Quit)):
+        m = self.menuBar().addMenu(tr("Файл"))
+        for text, fn, key in ((tr("Відкрити фото…"), self.open_photo, QKeySequence.StandardKey.Open),
+                              (tr("Відкрити проєкт (папку замовлення)…"), self.open_project_dialog, QKeySequence("Ctrl+Shift+O")),
+                              (tr("Пакетна обробка…"), self.open_batch, QKeySequence("Ctrl+B")),
+                              (tr("Зони із файлу…"), self.load_zones, None), (tr("Зони у файл…"), self.save_zones, None),
+                              (tr("Створити превʼю"), self.generate, QKeySequence("Ctrl+R")),
+                              (tr("Зберегти пакет…"), self.save_package, QKeySequence.StandardKey.Save),
+                              (tr("Скинути збережені налаштування"), self.reset_prefs, None),
+                              (tr("Вийти"), self.close, QKeySequence.StandardKey.Quit)):
             a = QAction(text, self)
             a.triggered.connect(lambda _=False, f=fn: f())
             if key:
                 a.setShortcut(key)
             m.addAction(a)
-        em = self.menuBar().addMenu("Правка")
-        self.act_undo = QAction("Відмінити", self)
+        lm = m.addMenu("Мова / Language")                       # перемикач мови (діє після перезапуску)
+        grp = QActionGroup(self)
+        for code, name in i18n.LANGUAGES.items():
+            a = QAction(name, self, checkable=True)
+            a.setChecked(code == i18n.current())
+            a.triggered.connect(lambda _=False, c=code: self.change_language(c))
+            grp.addAction(a)
+            lm.addAction(a)
+        em = self.menuBar().addMenu(tr("Правка"))
+        self.act_undo = QAction(tr("Відмінити"), self)
         self.act_undo.setShortcut(QKeySequence("Ctrl+Z"))
         self.act_undo.triggered.connect(lambda _=False: self.undo_zones())
-        self.act_redo = QAction("Повторити", self)
+        self.act_redo = QAction(tr("Повторити"), self)
         self.act_redo.setShortcuts([QKeySequence("Ctrl+Y"), QKeySequence("Ctrl+Shift+Z")])
         self.act_redo.triggered.connect(lambda _=False: self.redo_zones())
         em.addAction(self.act_undo)
         em.addAction(self.act_redo)
-        hm = self.menuBar().addMenu("Довідка")
-        a = QAction("Інструкція", self)
+        hm = self.menuBar().addMenu(tr("Довідка"))
+        a = QAction(tr("Інструкція"), self)
         a.setShortcut(QKeySequence.StandardKey.HelpContents)          # F1
         a.triggered.connect(lambda _=False: self.show_help())
         hm.addAction(a)
-        a = QAction("Про програму", self)
+        a = QAction(tr("Про програму"), self)
         a.triggered.connect(lambda _=False: self.show_about())
         hm.addAction(a)
+
+    def change_language(self, code: str) -> None:
+        """Зберігає мову й пропонує перезапуск (тексти вікон будуються один раз під час запуску)."""
+        if code == i18n.current():
+            return
+        self.prefs.set("language", code)
+        self.prefs.sync()
+        msg = {"uk": "Мову змінено. Перезапустити програму зараз?",
+               "en": "Language changed. Restart the program now?"}[code]
+        if QMessageBox.question(self, "Мова / Language", msg) == QMessageBox.StandardButton.Yes:
+            self.close()
+            from PySide6.QtCore import QProcess
+            args = list(sys.argv[1:]) if getattr(sys, "frozen", False) else list(sys.argv)
+            QProcess.startDetached(sys.executable, args)
+            QApplication.quit()
 
     # ------------------------------------------------------------------ відмінити / повторити (зони)
     def _record(self, label: str, key=None) -> None:
@@ -418,10 +446,10 @@ class MainWindow(QMainWindow):
 
     def _update_undo_actions(self) -> None:
         h = self.history
-        for w, can, lab, pre in ((self.act_undo, h.can_undo, h.undo_label, "Відмінити"),
-                                 (self.btn_undo, h.can_undo, h.undo_label, "↶ Відмінити"),
-                                 (self.act_redo, h.can_redo, h.redo_label, "Повторити"),
-                                 (self.btn_redo, h.can_redo, h.redo_label, "↷ Повторити")):
+        for w, can, lab, pre in ((self.act_undo, h.can_undo, h.undo_label, tr("Відмінити")),
+                                 (self.btn_undo, h.can_undo, h.undo_label, tr("↶ Відмінити")),
+                                 (self.act_redo, h.can_redo, h.redo_label, tr("Повторити")),
+                                 (self.btn_redo, h.can_redo, h.redo_label, tr("↷ Повторити"))):
             w.setEnabled(can)
             w.setToolTip(f"{pre}: {lab}" if can else "")
             if w in (self.act_undo, self.act_redo):
@@ -445,7 +473,7 @@ class MainWindow(QMainWindow):
         label = self.history.undo_label
         state = self.history.undo()
         if state is not None:
-            self._restore(state, "Відмінено", label)
+            self._restore(state, tr("Відмінено"), label)
 
     def redo_zones(self) -> None:
         if self.tabs.currentWidget() is self.edit_panel:
@@ -453,12 +481,12 @@ class MainWindow(QMainWindow):
         label = self.history.redo_label
         state = self.history.redo()
         if state is not None:
-            self._restore(state, "Повторено", label)
+            self._restore(state, tr("Повторено"), label)
 
     # ------------------------------------------------------------------ фото та зони
     def open_photo(self, path: str | None = None) -> None:
         if not path:
-            path, _ = QFileDialog.getOpenFileName(self, "Фото", self.prefs.get("last_photo_dir"), "Зображення (*.jpg *.jpeg *.png *.bmp *.tif *.tiff *.webp)")
+            path, _ = QFileDialog.getOpenFileName(self, tr("Фото"), self.prefs.get("last_photo_dir"), tr("Зображення (*.jpg *.jpeg *.png *.bmp *.tif *.tiff *.webp)"))
         if not path:
             return
         self.photo = path
@@ -478,22 +506,22 @@ class MainWindow(QMainWindow):
         try:
             img = load_image(self.photo, self.sp_w.value(), None if self.cb_auto_h.isChecked() else self.sp_h.value(), 3.0)
         except Exception as e:
-            QMessageBox.warning(self, "Не вдалося відкрити фото", str(e))
+            QMessageBox.warning(self, tr("Не вдалося відкрити фото"), tr(str(e)))
             self.photo = None
-            self.lbl_photo.setText("файл не вибрано")
+            self.lbl_photo.setText(tr("файл не вибрано"))
             self._update_buttons()
             return
         self.canvas.set_image(img.bgr, keep_view=not fit)
         self.canvas.set_zones(self.zones, self.lst_zones.currentRow())
-        self.lbl_status.setText(f"Полотно {img.width_mm:.0f}×{img.height_mm:.0f} мм. "
-                                "Позначте важливі місця (обличчя, очі) інструментами ▭ ◯ ⬠ і натисніть «Створити превʼю».")
+        self.lbl_status.setText(tr(f"Полотно {img.width_mm:.0f}×{img.height_mm:.0f} мм. "
+                                "Позначте важливі місця (обличчя, очі) інструментами ▭ ◯ ⬠ і натисніть «Створити превʼю»."))
         self._update_buttons()
 
     def _refresh_zone_list(self, select: int = -1) -> None:
         self.lst_zones.blockSignals(True)
         self.lst_zones.clear()
         for z in self.zones:
-            self.lst_zones.addItem(QListWidgetItem(f'{z["name"]}  ·  {z["shape"]}  ·  вага {z["weight"]:g}'))
+            self.lst_zones.addItem(QListWidgetItem(tr(f'{z["name"]}  ·  {z["shape"]}  ·  вага {z["weight"]:g}')))
         if 0 <= select < len(self.zones):
             self.lst_zones.setCurrentRow(select)
         self.lst_zones.blockSignals(False)
@@ -513,11 +541,11 @@ class MainWindow(QMainWindow):
         self.sp_zw.blockSignals(False)
 
     def _zone_drawn(self, z: dict) -> None:
-        z["name"] = f"Зона {len(self.zones) + 1}"
+        z["name"] = tr(f"Зона {len(self.zones) + 1}")
         self.zones.append(z)
         self._refresh_zone_list(len(self.zones) - 1)
         self._invalidate()
-        self._record("додано зону")
+        self._record(tr("додано зону"))
 
     def _zone_selected(self, i: int) -> None:
         self.canvas.set_zones(self.zones, i)
@@ -530,17 +558,17 @@ class MainWindow(QMainWindow):
         """Зону пересунули або змінили розмір на фото (канва вже оновила self.zones[i])."""
         self._refresh_zone_list(i)
         self._invalidate()
-        self._record("зміна положення або розміру зони")
+        self._record(tr("зміна положення або розміру зони"))
 
     def _zone_edited(self, *_):
         i = self.lst_zones.currentRow()
         if not 0 <= i < len(self.zones):
             return
-        self.zones[i]["name"] = self.ed_zname.text().strip() or f"Зона {i + 1}"
+        self.zones[i]["name"] = self.ed_zname.text().strip() or tr(f"Зона {i + 1}")
         self.zones[i]["weight"] = float(self.sp_zw.value())
         self._refresh_zone_list(i)
         self._invalidate()
-        self._record("зміна назви або ваги зони", key=("edit", i))
+        self._record(tr("зміна назви або ваги зони"), key=("edit", i))
 
     def delete_zone(self) -> None:
         i = self.lst_zones.currentRow()
@@ -548,50 +576,50 @@ class MainWindow(QMainWindow):
             del self.zones[i]
             self._refresh_zone_list(min(i, len(self.zones) - 1))
             self._invalidate()
-            self._record("видалено зону")
+            self._record(tr("видалено зону"))
 
     def load_zones(self) -> None:
-        path, _ = QFileDialog.getOpenFileName(self, "Зони пріоритету", self.prefs.get("last_zones_dir"), "JSON (*.json)")
+        path, _ = QFileDialog.getOpenFileName(self, tr("Зони пріоритету"), self.prefs.get("last_zones_dir"), "JSON (*.json)")
         if not path:
             return
         try:
             raw = load_zones_file(path)
             parse_zones(raw)
         except (ZoneError, OSError) as e:
-            QMessageBox.warning(self, "Помилка в зонах", str(e))
+            QMessageBox.warning(self, tr("Помилка в зонах"), tr(str(e)))
             return
         self.prefs.set("last_zones_dir", str(Path(path).parent))
         self.zones = copy.deepcopy(raw)
         for i, z in enumerate(self.zones):
-            z.setdefault("name", f"Зона {i + 1}")
+            z.setdefault("name", tr(f"Зона {i + 1}"))
             z["weight"] = float(z.get("weight", 2.0))
         if any(z.get("frame", "canvas") == "photo" for z in self.zones):
-            QMessageBox.information(self, "Зони", "Зони з frame=photo буде застосовано, але на екрані їх контури "
-                                    "показуються відносно обрізаного полотна.")
+            QMessageBox.information(self, tr("Зони"), tr("Зони з frame=photo буде застосовано, але на екрані їх контури "
+                                    "показуються відносно обрізаного полотна."))
         self._refresh_zone_list(0 if self.zones else -1)
         self._invalidate()
-        self._record("завантажено зони з файлу")
+        self._record(tr("завантажено зони з файлу"))
 
     def save_zones(self) -> None:
         if not self.zones:
-            QMessageBox.information(self, "Зони", "Зон ще немає.")
+            QMessageBox.information(self, tr("Зони"), tr("Зон ще немає."))
             return
-        path, _ = QFileDialog.getSaveFileName(self, "Зберегти зони", str(Path(self.prefs.get("last_zones_dir")) / "zones.json"),
+        path, _ = QFileDialog.getSaveFileName(self, tr("Зберегти зони"), str(Path(self.prefs.get("last_zones_dir")) / "zones.json"),
                                               "JSON (*.json)")
         if path:
             Path(path).write_text(json.dumps({"zones": self.zones}, ensure_ascii=False, indent=2), encoding="utf-8")
 
     # ------------------------------------------------------------------ каталог
     def load_catalog_file(self) -> None:
-        path, _ = QFileDialog.getOpenFileName(self, "Каталог фарб", self.prefs.get("last_catalog_dir"), "JSON (*.json)")
+        path, _ = QFileDialog.getOpenFileName(self, tr("Каталог фарб"), self.prefs.get("last_catalog_dir"), "JSON (*.json)")
         if not path:
             return
         try:
             self.catalog = load_catalog(path)
         except (CatalogError, OSError) as e:
-            QMessageBox.warning(self, "Помилка в каталозі", str(e))
+            QMessageBox.warning(self, tr("Помилка в каталозі"), tr(str(e)))
             return
-        self.lbl_cat.setText(f"{Path(path).name}: {len(self.catalog)} фарб")
+        self.lbl_cat.setText(tr(f"{Path(path).name}: {len(self.catalog)} фарб"))
         self.prefs.set("catalog_path", path)
         self.prefs.set("last_catalog_dir", str(Path(path).parent))
         self._invalidate()
@@ -600,24 +628,24 @@ class MainWindow(QMainWindow):
         try:
             self.catalog = load_catalog("starter_100")
         except (CatalogError, OSError) as e:
-            QMessageBox.warning(self, "Вбудована палітра", str(e))
+            QMessageBox.warning(self, tr("Вбудована палітра"), tr(str(e)))
             return
-        self.lbl_cat.setText(f"стартова палітра (чернетка): {len(self.catalog)} фарб")
+        self.lbl_cat.setText(tr(f"стартова палітра (чернетка): {len(self.catalog)} фарб"))
         self.prefs.set("catalog_path", "starter_100")
         self._invalidate()
 
     def clear_catalog(self) -> None:
         self.catalog = []
         self.prefs.set("catalog_path", "")
-        self.lbl_cat.setText("каталог не задано (коди P-001…)")
+        self.lbl_cat.setText(tr("каталог не задано (коди P-001…)"))
         self._invalidate()
 
     # ------------------------------------------------------------------ довідка
     def _help_section(self) -> str | None:
         w = self.tabs.currentWidget()
-        return {id(self.canvas): "Зони пріоритету", id(self.view_numbers): "Попередження", id(self.view_color): "Фарби",
-                id(self.edit_panel): "Ручне редагування", id(self.view_compare): "Підбір",
-                id(self.view_variants): "Підбір"}.get(id(w))
+        return {id(self.canvas): tr("Зони пріоритету"), id(self.view_numbers): tr("Попередження"), id(self.view_color): tr("Фарби"),
+                id(self.edit_panel): tr("Ручне редагування"), id(self.view_compare): tr("Підбір"),
+                id(self.view_variants): tr("Підбір")}.get(id(w))
 
     def show_help(self, section: str | None = None) -> None:
         dlg = HelpDialog(self, section or self._help_section())
@@ -626,11 +654,11 @@ class MainWindow(QMainWindow):
     def show_about(self) -> None:
         from ..settings import ALGORITHM_VERSION
         box = QMessageBox(self)
-        box.setWindowTitle(f"Про {branding.APP_NAME}")
+        box.setWindowTitle(tr(f"Про {branding.APP_NAME}"))
         box.setIconPixmap(branding.logo_pixmap(96))
-        box.setText(f"<b>{branding.APP_NAME}</b><br>Версія алгоритму {ALGORITHM_VERSION}<br>Автор: reeperetter<br><br>"
+        box.setText(tr(f"<b>{branding.APP_NAME}</b><br>Версія алгоритму {ALGORITHM_VERSION}<br>Автор: reeperetter<br><br>"
                           "Перетворює фото на виробничий пакет: контури з номерами, специфікація фарб, файли для друку.<br>"
-                          "Усі обчислення виконуються на цьому комп'ютері класичними алгоритмами, без штучного інтелекту й без інтернету.")
+                          "Усі обчислення виконуються на цьому комп'ютері класичними алгоритмами, без штучного інтелекту й без інтернету."))
         box.exec()
 
     # ------------------------------------------------------------------ друк
@@ -644,8 +672,8 @@ class MainWindow(QMainWindow):
 
     def _show_print_profile(self) -> None:
         p = self.print_profile
-        self.lbl_print.setText("файли для друку: вимкнено" if p is None else
-                               f"bleed {p['bleed_mm']:g}, загин {p['wrap_mm']:g} мм, {p['dpi']} dpi"
+        self.lbl_print.setText(tr("файли для друку: вимкнено") if p is None else
+                               tr(f"bleed {p['bleed_mm']:g}, загин {p['wrap_mm']:g} мм, {p['dpi']} dpi")
                                + (f", {p['tiles']}" if p["tiles"] else ""))
 
     def edit_print_profile(self) -> None:
@@ -687,7 +715,7 @@ class MainWindow(QMainWindow):
             self.res = None
             self.seg = None
             self.edit_panel.show_image(None, 1)
-            self.lbl_status.setText("Налаштування змінено: створіть превʼю знову, щоб зберегти пакет.")
+            self.lbl_status.setText(tr("Налаштування змінено: створіть превʼю знову, щоб зберегти пакет."))
             self._update_buttons()
 
     def generate(self) -> None:
@@ -696,16 +724,16 @@ class MainWindow(QMainWindow):
         try:
             s = self.make_settings()
         except ZoneError as e:
-            QMessageBox.warning(self, "Помилка в зонах", str(e))
+            QMessageBox.warning(self, tr("Помилка в зонах"), tr(str(e)))
             return
         if self.res is not None and self.res.report.get("manual_edits"):
-            if QMessageBox.question(self, "Ручні правки", "Нове превʼю скасує ручні правки ділянок. Продовжити?") \
+            if QMessageBox.question(self, tr("Ручні правки"), tr("Нове превʼю скасує ручні правки ділянок. Продовжити?")) \
                     != QMessageBox.StandardButton.Yes:
                 return
         photo = self.photo
         self.res = None
         self.seg = None
-        self._busy(True, "Створення превʼю… (зазвичай 10–40 с)")
+        self._busy(True, tr("Створення превʼю… (зазвичай 10–40 с)"))
         self.job = Job(lambda: run_pipeline(photo, s), self)
         self.job.done.connect(self._generated)
         self.job.failed.connect(self._job_failed)
@@ -720,8 +748,8 @@ class MainWindow(QMainWindow):
             self._apply_variant(row)
 
     def _job_failed(self, msg: str) -> None:
-        self.lbl_status.setText("Помилка")
-        QMessageBox.critical(self, "Помилка", msg)
+        self.lbl_status.setText(tr("Помилка"))
+        QMessageBox.critical(self, tr("Помилка"), tr(msg))
 
     def _generated(self, res, edited: bool = False) -> None:
         self.res = res
@@ -739,9 +767,9 @@ class MainWindow(QMainWindow):
         r = res.report
         t = res.spec["totals"]
         self.lbl_status.setText(
-            f"Готово: {r['regions_final']} ділянок, {t['paints']} кольорів, {t['containers']} ємностей "
+            tr(f"Готово: {r['regions_final']} ділянок, {t['paints']} кольорів, {t['containers']} ємностей "
             f"({t['total_ml']:g} мл){' (орієнтовно)' if res.spec['calculation']['provisional'] else ''}. "
-            f"Номерів на виносках: {r.get('regions_with_leader', 0)}, без номера: {r['regions_without_number_room']}.")
+            f"Номерів на виносках: {r.get('regions_with_leader', 0)}, без номера: {r['regions_without_number_room']}."))
         self._update_buttons()
 
     # ------------------------------------------------------------------ ручне редагування ділянок
@@ -755,7 +783,7 @@ class MainWindow(QMainWindow):
                 self._choices.append(("pal", i))
         for c in res.settings.catalog:
             if np.abs(self.seg.palette_lab - np.asarray(c["lab"], np.float32)).sum(1).min() > 0.01:
-                items.append((f'+ {c["code"]} {c.get("name", "")} (зі складу)'.strip(), c["hex"]))
+                items.append((tr(f'+ {c["code"]} {c.get("name", "")} (зі складу)').strip(), c["hex"]))
                 self._choices.append(("stock", c["lab"]))
         self.edit_panel.set_choices(items)
         self.edit_panel.show_image(res.numbered_img, self.seg.shape[1])
@@ -775,24 +803,24 @@ class MainWindow(QMainWindow):
 
     def _edit_color(self, idx: int):
         if not 0 <= idx < len(self._choices):
-            raise EditError("Оберіть колір у списку.")
+            raise EditError(tr("Оберіть колір у списку."))
         kind, v = self._choices[idx]
         return (self.seg, v) if kind == "pal" else add_color(self.seg, v)
 
     def _edit_recolor(self, x: float, y: float, idx: int) -> None:
         self._apply_edit(lambda: recolor_region(*(lambda sc: (sc[0], sc[0].region_at(x, y), sc[1]))(self._edit_color(idx))),
-                         "зміна кольору ділянки")
+                         tr("зміна кольору ділянки"))
 
     def _edit_merge(self, x0: float, y0: float, x1: float, y1: float) -> None:
         self._apply_edit(lambda: merge_into(self.seg, self.seg.region_at(x0, y0), self.seg.region_at(x1, y1)),
-                         "злиття ділянок")
+                         tr("злиття ділянок"))
 
     def _tbl_menu(self, pos) -> None:
         row = self.tbl.rowAt(pos.y())
         if row < 0:
             return
         m = QMenu(self)
-        m.addAction("Змінити колір палітри…", lambda: self._edit_palette_color(row))
+        m.addAction(tr("Змінити колір палітри…"), lambda: self._edit_palette_color(row))
         m.exec(self.tbl.viewport().mapToGlobal(pos))
 
     def _edit_palette_color(self, row: int) -> None:
@@ -803,24 +831,24 @@ class MainWindow(QMainWindow):
         idx = int(p["number"]) - 1
         if not 0 <= idx < len(self.seg.palette_lab):
             return
-        dlg = PaintPickDialog(f'Колір {p["number"]}: {p["paint_code"]} {p["paint_name"]}'.strip(), p["hex"],
+        dlg = PaintPickDialog(tr(f'Колір {p["number"]}: {p["paint_code"]} {p["paint_name"]}').strip(), p["hex"],
                               list(self.res.settings.catalog), self.seg.palette_lab, self)
         if dlg.exec() != dlg.DialogCode.Accepted or dlg.result_lab is None:
             return
         lab = dlg.result_lab
-        self._apply_edit(lambda: set_palette_color(self.seg, idx, lab), f"зміна кольору палітри №{p['number']}")
+        self._apply_edit(lambda: set_palette_color(self.seg, idx, lab), tr(f"зміна кольору палітри №{p['number']}"))
 
     def _edit_palette(self, x: float, y: float, idx: int) -> None:
         def make():
             seg, to = self._edit_color(idx)
             return recolor_color(seg, int(seg.region_color[seg.region_at(x, y)]), to)
-        self._apply_edit(make, "заміна кольору палітри в усій картині")
+        self._apply_edit(make, tr("заміна кольору палітри в усій картині"))
 
     def _edit_smooth(self, x: float, y: float, radius: int) -> None:
-        self._apply_edit(lambda: smooth_region(self.seg, self.seg.region_at(x, y), radius), "згладжування ділянки")
+        self._apply_edit(lambda: smooth_region(self.seg, self.seg.region_at(x, y), radius), tr("згладжування ділянки"))
 
     def _edit_polygon(self, pts: list, idx: int) -> None:
-        self._apply_edit(lambda: paint_polygon(*(lambda sc: (sc[0], pts, sc[1]))(self._edit_color(idx))), "зафарбований полігон")
+        self._apply_edit(lambda: paint_polygon(*(lambda sc: (sc[0], pts, sc[1]))(self._edit_color(idx))), tr("зафарбований полігон"))
 
     def _apply_edit(self, make, label: str) -> None:
         if not self._edit_ready():
@@ -828,7 +856,7 @@ class MainWindow(QMainWindow):
         try:
             new = make()
         except EditError as e:
-            self.lbl_status.setText(f"Правку не застосовано: {e}")
+            self.lbl_status.setText(tr(f"Правку не застосовано: {e}"))
             return
         self._run_rebuild(new, label, record=True)
 
@@ -838,11 +866,11 @@ class MainWindow(QMainWindow):
             return
         label = h.redo_label if redo else h.undo_label
         seg = h.redo() if redo else h.undo()
-        self._run_rebuild(seg, ("Повторено: " if redo else "Скасовано: ") + label, record=False)
+        self._run_rebuild(seg, (tr("Повторено: ") if redo else tr("Скасовано: ")) + label, record=False)
 
     def _run_rebuild(self, seg, label: str, record: bool) -> None:
         res0 = self.res
-        self._busy(True, "Перерахунок після правки…")
+        self._busy(True, tr("Перерахунок після правки…"))
         self.edit_panel.setEnabled(False)
         self.job = Job(lambda: rebuild_result(seg, res0, edits=1 if record else 0), self)
         self.job.done.connect(lambda r: self._edited(r, seg, label, record))
@@ -856,8 +884,8 @@ class MainWindow(QMainWindow):
             self.seg_history.push(seg, label)
         res.report["manual_edits"] = self.seg_history.position          # діючі правки (після Ctrl+Z меншає)
         self._generated(res, edited=True)
-        self.lbl_status.setText(f"{label[:1].upper() + label[1:]}: {res.report['regions_final']} ділянок, "
-                                f"{res.spec['totals']['paints']} кольорів, {res.spec['totals']['containers']} ємностей.")
+        self.lbl_status.setText(tr(f"{label[:1].upper() + label[1:]}: {res.report['regions_final']} ділянок, "
+                                f"{res.spec['totals']['paints']} кольорів, {res.spec['totals']['containers']} ємностей."))
 
     def _edit_failed(self, msg: str) -> None:
         self.edit_panel.setEnabled(True)
@@ -883,18 +911,18 @@ class MainWindow(QMainWindow):
         self.lst_warn.clear()
         order = {"critical": 0, "warning": 1, "info": 2}
         for w in sorted(res.warnings, key=lambda w: order.get(w["severity"], 3)):
-            it = QListWidgetItem(f'[{w["severity"]}] {w["code"]}: {w["message"]}')
+            it = QListWidgetItem(f'[{w["severity"]}] {w["code"]}: {tr(w["message"])}')
             it.setForeground(QBrush(QColor(SEV_COLOR.get(w["severity"], "#000"))))
-            it.setToolTip(w.get("recommendation", ""))
+            it.setToolTip(tr(w.get("recommendation", "")))
             self.lst_warn.addItem(it)
         crit = sum(1 for w in res.warnings if w["severity"] == "critical")
-        self.bottom.setTabText(1, f"Попередження ({len(res.warnings)}{', критичних ' + str(crit) if crit else ''})")
+        self.bottom.setTabText(1, tr(f"Попередження ({len(res.warnings)}{', критичних ' + str(crit) if crit else ''})"))
 
     def save_package(self, folder: str | None = None, force: bool = False) -> None:
         if self.res is None or self.job:
             return
         if not folder:
-            folder = QFileDialog.getExistingDirectory(self, "Куди зберегти пакет замовлення", self.prefs.get("last_save_dir"))
+            folder = QFileDialog.getExistingDirectory(self, tr("Куди зберегти пакет замовлення"), self.prefs.get("last_save_dir"))
         if not folder:
             return
         self.prefs.set("last_save_dir", folder)
@@ -905,7 +933,7 @@ class MainWindow(QMainWindow):
         res.settings.extra = self._extra()          # назва магазину й параметри друку беруться з поточних полів
         if kit:
             res.settings.extra["kit_items"] = kit
-        self._busy(True, "Збереження пакета…")
+        self._busy(True, tr("Збереження пакета…"))
         oname = self.original_name
         self.job = Job(lambda: build_package(res, folder, photo, force=force, original_name=oname), self)
         self.job.done.connect(lambda info: self._saved(info, folder))
@@ -915,17 +943,17 @@ class MainWindow(QMainWindow):
 
     def _saved(self, info: dict, folder: str) -> None:
         if info.get("blocked"):
-            self.lbl_status.setText("Виробничі файли заблоковано критичними помилками.")
+            self.lbl_status.setText(tr("Виробничі файли заблоковано критичними помилками."))
             ans = QMessageBox.question(
-                self, "Пакет заблоковано",
-                "Є критичні попередження: файли для друку й виробництва не створено.\n"
-                "Створити їх попри помилки (лише після ручної перевірки)?")
+                self, tr("Пакет заблоковано"),
+                tr("Є критичні попередження: файли для друку й виробництва не створено.\n"
+                "Створити їх попри помилки (лише після ручної перевірки)?"))
             if ans == QMessageBox.StandardButton.Yes:
                 QTimer.singleShot(0, lambda: self.save_package(folder, force=True))
             return
-        self.lbl_status.setText(f"Пакет збережено: {info['dir']}")
-        QMessageBox.information(self, "Готово", f"Пакет збережено:\n{info['dir']}\n\n"
-                                "Пізніше його можна відкрити без перерахунку: «Відкрити проєкт».")
+        self.lbl_status.setText(tr(f"Пакет збережено: {info['dir']}"))
+        QMessageBox.information(self, tr("Готово"), tr(f"Пакет збережено:\n{info['dir']}\n\n"
+                                "Пізніше його можна відкрити без перерахунку: «Відкрити проєкт»."))
 
     # ------------------------------------------------------------------ порівняння варіантів
     def compare_variants(self) -> None:
@@ -934,12 +962,12 @@ class MainWindow(QMainWindow):
         try:
             s = self.make_settings()
         except ZoneError as e:
-            QMessageBox.warning(self, "Помилка в зонах", str(e))
+            QMessageBox.warning(self, tr("Помилка в зонах"), tr(str(e)))
             return
         photo = self.photo
         variants = default_variants(s)
         self.res = None
-        self._busy(True, f"Порівняння {len(variants)} варіантів… (кілька хвилин; можна не чекати біля екрана)")
+        self._busy(True, tr(f"Порівняння {len(variants)} варіантів… (кілька хвилин; можна не чекати біля екрана)"))
         self.job = Job(lambda: select_best(photo, s, variants), self)
         self.job.done.connect(self._compared)
         self.job.failed.connect(self._job_failed)
@@ -953,9 +981,9 @@ class MainWindow(QMainWindow):
         self.tbl_var.setRowCount(len(rows))
         for i, r in enumerate(rows):
             if "error" in r:
-                vals = [MODE_NAMES[r["mode"]], r["colors_requested"], "", "", "", "", "", "", "помилка"]
+                vals = [MODE_NAMES[r["mode"]], r["colors_requested"], "", "", "", "", "", "", tr("помилка")]
             else:
-                status = "ОБРАНО" if i == best else ("заблоковано" if r["critical"] else "")
+                status = tr("ОБРАНО") if i == best else (tr("заблоковано") if r["critical"] else "")
                 vals = [MODE_NAMES[r["mode"]], r["colors_requested"], f'{r["score"]:.3f}',
                         f'{r["delta_e76_weighted"]:.1f}', f'{r["ssim"]:.2f}', r["regions"],
                         r["regions_no_number"], r["regions_leader"], status]
@@ -969,10 +997,10 @@ class MainWindow(QMainWindow):
         self.bottom.setCurrentWidget(self.tbl_var)
         if chosen is None:
             self.tabs.setCurrentWidget(self.view_variants)
-            self.lbl_status.setText("Усі варіанти мають критичні помилки або не збудувалися; перегляньте таблицю.")
+            self.lbl_status.setText(tr("Усі варіанти мають критичні помилки або не збудувалися; перегляньте таблицю."))
             return
         note = f" {report['note']}" if report.get("note") else ""
-        self.lbl_status.setText(f"Обрано: {MODE_NAMES[chosen.mode]}, {chosen.n_colors} кольорів.{note}")
+        self.lbl_status.setText(tr(f"Обрано: {MODE_NAMES[chosen.mode]}, {chosen.n_colors} кольорів.{note}"))
         self._pending_apply = best           # задача ще не завершена: застосуємо в _job_finished
 
     def _apply_variant(self, row: int, _col: int = 0) -> None:
@@ -1022,9 +1050,9 @@ class MainWindow(QMainWindow):
         if cat:
             try:
                 self.catalog = load_catalog(cat)
-                self.lbl_cat.setText(f"{Path(cat).name}: {len(self.catalog)} фарб")
+                self.lbl_cat.setText(tr(f"{Path(cat).name}: {len(self.catalog)} фарб"))
             except (CatalogError, OSError):
-                self.lbl_cat.setText("збережений каталог недоступний (каталог не задано)")
+                self.lbl_cat.setText(tr("збережений каталог недоступний (каталог не задано)"))
         g = p.geometry()
         if not g.isEmpty():
             self.restoreGeometry(g)
@@ -1050,7 +1078,7 @@ class MainWindow(QMainWindow):
     def reset_prefs(self) -> None:
         self.prefs.reset()
         self._load_prefs()
-        QMessageBox.information(self, "Налаштування", "Збережені налаштування скинуто до типових.")
+        QMessageBox.information(self, tr("Налаштування"), tr("Збережені налаштування скинуто до типових."))
 
     def closeEvent(self, e):
         self._save_prefs()
@@ -1061,11 +1089,11 @@ class MainWindow(QMainWindow):
         if self.job:
             return
         if not folder:
-            folder = QFileDialog.getExistingDirectory(self, "Папка замовлення (order_XXXXXX)", self.prefs.get("last_save_dir"))
+            folder = QFileDialog.getExistingDirectory(self, tr("Папка замовлення (order_XXXXXX)"), self.prefs.get("last_save_dir"))
         if not folder:
             return
         self.res = None
-        self._busy(True, "Відкриття проєкту…")
+        self._busy(True, tr("Відкриття проєкту…"))
         self.job = Job(lambda: open_project(folder), self)
         self.job.done.connect(self._project_opened)
         self.job.failed.connect(self._job_failed)
@@ -1103,15 +1131,15 @@ class MainWindow(QMainWindow):
         for w in widgets:
             w.blockSignals(False)
         self.catalog = list(s.catalog)
-        self.lbl_cat.setText(f"каталог із проєкту: {len(self.catalog)} фарб" if self.catalog
-                             else "каталог не задано (коди P-001…)")
+        self.lbl_cat.setText(tr(f"каталог із проєкту: {len(self.catalog)} фарб") if self.catalog
+                             else tr("каталог не задано (коди P-001…)"))
         self.zones = copy.deepcopy(list(s.zones))
         for i, z in enumerate(self.zones):
-            z.setdefault("name", f"Зона {i + 1}")
+            z.setdefault("name", tr(f"Зона {i + 1}"))
             z["weight"] = float(z.get("weight", 2.0))
         self.photo = str(res.source_photo)
         self.original_name = res.original_name
-        self.lbl_photo.setText(f"{res.original_name} (з проєкту)")
+        self.lbl_photo.setText(tr(f"{res.original_name} (з проєкту)"))
         self._reload_timer.stop()
         self._reload_canvas(fit=True)
         self._refresh_zone_list(0 if self.zones else -1)
@@ -1119,7 +1147,7 @@ class MainWindow(QMainWindow):
         self._update_undo_actions()
         self.res = res                      # _reload_canvas/_refresh_zone_list не скасовують результат: він встановлюється останнім
         self._generated(res)
-        self.lbl_status.setText("Проєкт відкрито без перерахунку. " + self.lbl_status.text())
+        self.lbl_status.setText(tr("Проєкт відкрито без перерахунку. ") + self.lbl_status.text())
         self.prefs.set("last_save_dir", str(Path(res.source_photo).parent.parent.parent))
 
     # ------------------------------------------------------------------ пакетна обробка
@@ -1129,7 +1157,7 @@ class MainWindow(QMainWindow):
         try:
             base = self.make_settings()
         except ZoneError as e:
-            QMessageBox.warning(self, "Помилка в зонах", str(e))
+            QMessageBox.warning(self, tr("Помилка в зонах"), tr(str(e)))
             return
         self.batch_dialog = BatchDialog(base, self.prefs, self)
         self.batch_dialog.exec()

@@ -11,7 +11,7 @@ ORG, APP = "paint-by-numbers", "PaintByNumbers"
 DEFAULTS = {
     "width_mm": 300.0, "auto_height": True, "height_mm": 400.0, "mode": "balanced",
     "auto_colors": True, "colors": 24, "coverage_mm2": 0.0, "safety_factor": 1.3, "coverage_confirmed": False,
-    "catalog_path": "", "store_name": "", "print_profile": "", "help_seen": False, "detail": 1.0, "auto_detail": True, "split_sizes": "", "last_photo_dir": "", "last_save_dir": "", "last_zones_dir": "", "last_catalog_dir": "",
+    "catalog_path": "", "store_name": "", "print_profile": "", "help_seen": False, "language": "", "detail": 1.0, "auto_detail": True, "split_sizes": "", "last_photo_dir": "", "last_save_dir": "", "last_zones_dir": "", "last_catalog_dir": "",
 }
 RANGES = {"width_mm": (50.0, 3000.0), "height_mm": (50.0, 3000.0), "colors": (4, 64),
           "coverage_mm2": (0.0, 1e7), "safety_factor": (1.0, 10.0), "detail": (0.5, 3.0)}

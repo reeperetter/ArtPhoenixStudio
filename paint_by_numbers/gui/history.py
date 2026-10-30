@@ -5,6 +5,7 @@ import copy
 import time
 from dataclasses import dataclass, field
 from typing import Any
+from ..i18n import tr
 
 MERGE_WINDOW_S = 1.0       # послідовні правки одного й того самого поля впродовж цього часу --- один крок
 DEFAULT_LIMIT = 100
@@ -30,7 +31,7 @@ class UndoStack:
         self.reset(self.initial)
 
     def reset(self, state) -> None:
-        self._items = [_Entry(copy.deepcopy(state), "початковий стан")]
+        self._items = [_Entry(copy.deepcopy(state), tr("початковий стан"))]
         self._pos = 0
 
     @property
