@@ -26,7 +26,7 @@ import cv2
 import numpy as np
 
 from .export.package import build_package
-from .generate import Result, run_pipeline
+from .generate import Cancelled, Result, run_pipeline
 from .quality.warnings import summarize
 from .settings import MAX_COLORS, MIN_COLORS, PRESETS, Settings
 
@@ -112,22 +112,39 @@ def _worker(args) -> dict:
 
 
 def run_candidates(photo, base: Settings, variants: list[tuple[str, int]], jobs: int | None = None,
-                   thumb_h: int = 520, progress=None, cost_weight: float = COST_WEIGHT) -> list[dict]:
+                   thumb_h: int = 520, progress=None, cost_weight: float = COST_WEIGHT, should_stop=None) -> list[dict]:
     """Запускає всі варіанти (у кількох процесах) і повертає рядки з показниками та оцінкою."""
     tasks = [(str(photo), dataclasses.replace(base, mode=m, n_colors=c), thumb_h) for m, c in variants]
     jobs = max(1, min(jobs or min(os.cpu_count() or 1, 4), len(tasks)))
     rows: list[dict] = []
     if jobs == 1:
         for i, t in enumerate(tasks):
+            if should_stop and should_stop():
+                raise Cancelled()
             rows.append(_worker(t))
             if progress:
                 progress(i + 1, len(tasks))
     else:
         with cf.ProcessPoolExecutor(max_workers=jobs, mp_context=mp.get_context("spawn")) as ex:
-            for i, r in enumerate(ex.map(_worker, tasks)):       # порядок збігається з порядком варіантів
-                rows.append(r)
-                if progress:
-                    progress(i + 1, len(tasks))
+            futs = [ex.submit(_worker, t) for t in tasks]
+            try:
+                for i, f in enumerate(futs):                     # порядок збігається з порядком варіантів
+                    while True:
+                        if should_stop and should_stop():
+                            raise Cancelled()
+                        try:
+                            r = f.result(timeout=0.3)
+                            break
+                        except cf.TimeoutError:
+                            continue
+                    rows.append(r)
+                    if progress:
+                        progress(i + 1, len(tasks))
+            except Cancelled:
+                for f in futs:
+                    f.cancel()                                   # варіанти, що ще не стартували, не запускаються
+                ex.shutdown(wait=False, cancel_futures=True)
+                raise
     for r in rows:
         if "error" not in r:
             r.update(score_of(r, cost_weight))
@@ -181,10 +198,10 @@ def compare_report(rows: list[dict], best: int | None, cost_weight: float = COST
 
 
 def select_best(photo, base: Settings, variants=None, jobs: int | None = None, progress=None,
-                cost_weight: float = COST_WEIGHT):
+                cost_weight: float = COST_WEIGHT, should_stop=None):
     """Повертає (settings найкращого, рядки, індекс, звіт, аркуш). Settings=None, якщо всі варіанти заблоковані."""
     variants = variants or default_variants(base)
-    rows = run_candidates(photo, base, variants, jobs, progress=progress, cost_weight=cost_weight)
+    rows = run_candidates(photo, base, variants, jobs, progress=progress, cost_weight=cost_weight, should_stop=should_stop)
     best = pick_best(rows)
     sheet = contact_sheet(rows, best)
     chosen = None if best is None else dataclasses.replace(base, mode=rows[best]["mode"],

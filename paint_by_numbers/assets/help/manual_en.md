@@ -8,9 +8,10 @@ The program turns a customer's photo into a production package for a paint-by-nu
 4. **Choose paints**: "Starter (215)" or your own catalogue. This is optional, but it is the only way for identical paints to match between orders.
 5. **Mark priority zones** (eyes, important details) on the "Photo and zones" tab. Skin and faces are detailed automatically (see "Detail").
 6. **Click the big green "Create preview" button** (Ctrl+R). It usually takes 10–40 seconds.
-7. **Review the result** on the "Outlines with numbers", "Colours" and "Comparison" tabs and the "Warnings" list.
-8. If needed, **fix regions manually** on the "Region editing" tab.
-9. Enter the **order number** and click **"Save package…"** (Ctrl+S).
+7. While the calculation runs, the status shows the **current stage**, and the **"Cancel"** button under the green button interrupts it (it stops at the end of the current stage; anything already saved to disk is untouched).
+8. **Review the result** on the "Outlines with numbers", "Colours" and "Comparison" tabs and the "Warnings" list.
+9. If needed, **fix regions manually** on the "Region editing" tab.
+10. Enter the **order number** and click **"Save package…"** (Ctrl+S).
 
 > Until the coverage norm N has been measured, the container count is **approximate**. This is marked in all documents. See "Paints and coverage norm".
 

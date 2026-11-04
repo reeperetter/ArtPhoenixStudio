@@ -726,3 +726,36 @@ def test_left_groups_collapse_and_persist(tmp_path):
     w.prefs.sync()
     w2 = MainWindow(Prefs(ini))
     assert w2._groups[3].is_collapsed() and not w2._groups[1].is_collapsed()
+
+
+def test_generation_can_be_cancelled(tmp_path, monkeypatch):
+    from PySide6.QtWidgets import QApplication, QMessageBox
+    from paint_by_numbers.gui import main_window as mw
+    app = QApplication.instance() or QApplication([])
+    monkeypatch.setattr(QMessageBox, "information", lambda *a, **k: None)
+    monkeypatch.setattr(QMessageBox, "critical", lambda *a, **k: (_ for _ in ()).throw(AssertionError("не має бути помилки")))
+    seen = []
+
+    def slow(photo, s, progress=None):
+        for _ in range(500):
+            seen.append(1)
+            progress("quantize")
+            time.sleep(0.01)
+        raise AssertionError("скасування не спрацювало")
+
+    monkeypatch.setattr(mw, "run_pipeline", slow)
+    img = np.full((120, 160, 3), (200, 170, 120), np.uint8)
+    f = tmp_path / "p.png"
+    cv2.imwrite(str(f), img)
+    w = mw.MainWindow(Prefs(str(tmp_path / "c.ini")))
+    w.open_photo(str(f))
+    w.generate()
+    assert w.btn_cancel.isVisibleTo(w) and w.job is not None
+    t0 = time.time()
+    while not seen and time.time() - t0 < 5:
+        app.processEvents()
+    w._cancel_job()
+    _wait(w, lambda: w.job is None, 10)
+    app.processEvents()
+    assert w.res is None and "Скасовано" in w.lbl_status.text() and not w.btn_cancel.isVisibleTo(w)
+    assert w.btn_gen.isEnabled()

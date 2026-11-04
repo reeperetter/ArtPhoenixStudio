@@ -63,7 +63,12 @@ class Result:
     original_name: str | None = None
 
 
-def run_pipeline(photo: str | Path, settings: Settings, restored: dict | None = None) -> Result:
+class Cancelled(Exception):
+    """Оператор скасував довгу операцію (ТЗ 19.1): проміжні результати відкидаються, збережені проєкти не зачіпаються."""
+
+
+def run_pipeline(photo: str | Path, settings: Settings, restored: dict | None = None, progress=None) -> Result:
+    """progress(stage) викликається після кожного етапу; може кинути Cancelled, щоб перервати розрахунок."""
     t: dict = {}
     clock = time.perf_counter()
 
@@ -72,6 +77,8 @@ def run_pipeline(photo: str | Path, settings: Settings, restored: dict | None = 
         now = time.perf_counter()
         t[name] = round(now - clock, 2)
         clock = now
+        if progress:
+            progress(name)
 
     p = settings.preset
     ppm = settings.ppm

@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import json
 import sys
+import threading
 from pathlib import Path
 
 import numpy as np
@@ -19,7 +20,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QButtonGroup, QC
 from .. import i18n
 from . import branding, wheel_guard
 from ..compare import default_variants, select_best
-from ..generate import run_pipeline
+from ..generate import Cancelled, run_pipeline
 from ..export.package import build_package
 from ..export.print_ready import PrintProfile
 from ..image_io.loader import load_image
@@ -47,18 +48,43 @@ MODE_NAMES = {k: tr(v) for k, v in MODE_NAMES_UK.items()}
 SEV_COLOR = {"critical": "#d32f2f", "warning": "#e68900", "info": "#6b6b6b"}
 
 
+STAGE_NAMES = {"load": "завантаження фото", "preprocess": "підготовка зображення", "restore": "відновлення розбиття",
+               "quantize": "добір кольорів", "components": "виділення ділянок", "merge": "злиття дрібних ділянок",
+               "protrusions": "згладжування виступів", "numbers": "розміщення номерів", "geometry+labels": "побудова контурів",
+               "spec": "специфікація фарб", "render": "малювання результату", "metrics": "оцінка якості"}
+
+
 class Job(QThread):
-    """Виконує довгу операцію поза потоком інтерфейсу."""
+    """Виконує довгу операцію поза потоком інтерфейсу. Скасовується кооперативно: розрахунок перевіряє прапорець
+    після кожного етапу (скасування спрацьовує з невеликою затримкою, до кінця поточного етапу)."""
     done = Signal(object)
     failed = Signal(str)
+    cancelled = Signal()
+    stage = Signal(str)
 
     def __init__(self, fn, parent=None):
         super().__init__(parent)
         self._fn = fn
+        self._stop = threading.Event()
+
+    def request_cancel(self) -> None:
+        self._stop.set()
+
+    def stop_requested(self) -> bool:
+        return self._stop.is_set()
+
+    def check(self, name: str = "") -> None:
+        """Колбек для run_pipeline: повідомляє етап і перериває розрахунок, якщо оператор натиснув «Скасувати»."""
+        if name:
+            self.stage.emit(name)
+        if self._stop.is_set():
+            raise Cancelled()
 
     def run(self):
         try:
             self.done.emit(self._fn())
+        except Cancelled:
+            self.cancelled.emit()
         except (ProjectError, ZoneError, CatalogError) as e:     # повідомлення вже зрозуміле оператору
             self.failed.emit(str(e))
         except Exception as e:
@@ -300,6 +326,11 @@ class MainWindow(QMainWindow):
         self.lbl_status = QLabel(tr("Відкрийте фото"))
         self.lbl_status.setWordWrap(True)
         v.addWidget(self.btn_gen)
+        self.btn_cancel = QPushButton(tr("Скасувати"))
+        self.btn_cancel.setToolTip(tr("Перервати поточну тривалу операцію; зроблене раніше не зміниться"))
+        self.btn_cancel.clicked.connect(self._cancel_job)
+        self.btn_cancel.setVisible(False)
+        v.addWidget(self.btn_cancel)
         v.addLayout(f)
         v.addWidget(self.btn_save)
         v.addWidget(self.progress)
@@ -735,11 +766,26 @@ class MainWindow(QMainWindow):
             auto_detail=self.cb_auto_detail.isChecked(), zones=copy.deepcopy(self.zones), catalog=list(self.catalog),
             extra=self._extra())
 
-    def _busy(self, on: bool, text: str = "") -> None:
+    def _busy(self, on: bool, text: str = "", cancellable: bool = False) -> None:
         self.progress.setRange(0, 0 if on else 1)
         if text:
             self.lbl_status.setText(text)
+        self.btn_cancel.setVisible(on and cancellable)
+        self.btn_cancel.setEnabled(True)
         self._update_buttons(busy=on)
+
+    def _cancel_job(self) -> None:
+        if self.job:
+            self.job.request_cancel()
+            self.btn_cancel.setEnabled(False)
+            self.lbl_status.setText(tr("Скасування… (завершується поточний етап)"))
+
+    def _job_cancelled(self) -> None:
+        self.lbl_status.setText(tr("Скасовано."))
+
+    def _show_stage(self, name: str) -> None:
+        if self.job and not self.job.stop_requested():
+            self.lbl_status.setText(f"{getattr(self, '_stage_prefix', '')}: {tr(STAGE_NAMES.get(name, name))}…")
 
     def _update_buttons(self, busy: bool = False) -> None:
         has = bool(self.photo)
@@ -772,10 +818,13 @@ class MainWindow(QMainWindow):
         photo = self.photo
         self.res = None
         self.seg = None
-        self._busy(True, tr("Створення превʼю… (зазвичай 10–40 с)"))
-        self.job = Job(lambda: run_pipeline(photo, s), self)
+        self._busy(True, tr("Створення превʼю… (зазвичай 10–40 с)"), cancellable=True)
+        self._stage_prefix = tr("Створення превʼю")
+        self.job = Job(lambda: run_pipeline(photo, s, progress=self.job.check), self)
         self.job.done.connect(self._generated)
         self.job.failed.connect(self._job_failed)
+        self.job.cancelled.connect(self._job_cancelled)
+        self.job.stage.connect(self._show_stage)
         self.job.finished.connect(self._job_finished)
         self.job.start()
 
@@ -1009,10 +1058,11 @@ class MainWindow(QMainWindow):
         photo = self.photo
         variants = default_variants(s)
         self.res = None
-        self._busy(True, tr(f"Порівняння {len(variants)} варіантів… (кілька хвилин; можна не чекати біля екрана)"))
-        self.job = Job(lambda: select_best(photo, s, variants), self)
+        self._busy(True, tr(f"Порівняння {len(variants)} варіантів… (кілька хвилин; можна не чекати біля екрана)"), cancellable=True)
+        self.job = Job(lambda: select_best(photo, s, variants, should_stop=self.job.stop_requested), self)
         self.job.done.connect(self._compared)
         self.job.failed.connect(self._job_failed)
+        self.job.cancelled.connect(self._job_cancelled)
         self.job.finished.connect(self._job_finished)
         self.job.start()
 

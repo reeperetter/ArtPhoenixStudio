@@ -75,3 +75,23 @@ def test_contact_sheet_and_end_to_end(tmp_path):
 def test_color_limit_is_36():
     from paint_by_numbers.settings import MAX_COLORS, PRESETS
     assert MAX_COLORS == 36 and max(p.n_colors for p in PRESETS.values()) == MAX_COLORS
+
+
+def test_pipeline_progress_and_cancel(tmp_path):
+    import cv2
+    import numpy as np
+    from paint_by_numbers.compare import run_candidates
+    from paint_by_numbers.generate import Cancelled, run_pipeline
+    f = tmp_path / "p.png"
+    cv2.imwrite(str(f), np.random.default_rng(1).integers(0, 255, (120, 160, 3), np.uint8))
+    stages = []
+    run_pipeline(f, Settings(n_colors=5, width_mm=60.0), progress=stages.append)
+    assert stages[0] == "load" and "quantize" in stages and stages[-1] == "metrics"
+
+    def stop_at_quantize(name):
+        if name == "quantize":
+            raise Cancelled()
+    with pytest.raises(Cancelled):
+        run_pipeline(f, Settings(n_colors=5, width_mm=60.0), progress=stop_at_quantize)
+    with pytest.raises(Cancelled):
+        run_candidates(f, Settings(width_mm=60.0), [("simple", 6), ("balanced", 8)], jobs=1, should_stop=lambda: True)
