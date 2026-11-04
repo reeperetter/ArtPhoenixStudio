@@ -105,6 +105,8 @@ Tip: for a portrait, one elliptical zone on the face with weight 2–3 is enough
 
 ## Warnings
 
+After you open a photo, a **photo quality assessment** (blur, noise, dark or overexposed, low contrast, complexity) appears under the buttons of the left panel, and the full set of metrics goes into the quality report. The thresholds are starting hypotheses to be refined on a control set of photos; the assessment blocks nothing, the decision stays with the operator.
+
 After creating the preview open the "Warnings" tab. Severity: **critical** (production files are blocked), **normal** (check), **informational**.
 
 | Code | Meaning | What to do |
@@ -120,6 +122,11 @@ After creating the preview open the "Warnings" tab. Severity: **critical** (prod
 | CAT_TOO_SMALL | The catalogue has fewer paints than colours | Fewer colours or a wider catalogue |
 | ZONE_EMPTY, ZONE_NUM_NO_ROOM | Problem with a priority zone | Check the zone's position or weight |
 | IMG_LOW_RES | The photo is too small for this canvas | Use a better-quality photo |
+| IMG_BLUR | The photo is blurred (strong: normal, slight: informational) | Ask for a sharper photo |
+| IMG_NOISY | The photo is noisy | Better lighting, priority zones |
+| IMG_DARK, IMG_BRIGHT | The photo is too dark or overexposed | Ask for another photo |
+| IMG_LOW_CONTRAST (informational) | Low contrast: the picture looks "flat" | More colours and detail |
+| IMG_DETAIL_LOSS, IMG_COMPLEX (informational) | Too many fine details or a complex scene | Larger canvas, finer mode, zones |
 | IMG_CROPPED (informational) | The photo was cropped to the canvas proportions | Check the framing |
 | NUM_LEADER (informational) | A number was moved out of its region on a leader line | Check legibility |
 | COLORS_REDUCED, PRIORITY_ZONES_NOT_SET | Informational messages | No action |

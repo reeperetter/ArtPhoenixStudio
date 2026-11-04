@@ -16,6 +16,7 @@ from .export.package import build_package
 from .geometry.labels import NumberSpot, place_numbers_vector
 from .geometry.leaders import place_leaders
 from .palette.catalog import match_palette
+from .quality.photo_assessment import assess_photo
 from .geometry.planar import Geometry, build_geometry
 from .image_io.loader import load_image
 from .palette.specification import compute_spec
@@ -76,6 +77,8 @@ def run_pipeline(photo: str | Path, settings: Settings, restored: dict | None = 
     ppm = settings.ppm
     img = load_image(str(photo), settings.width_mm, settings.height_mm, ppm)
     lap("load")
+    photo_metrics, photo_warns = assess_photo(img.bgr, (img.width_mm, img.height_mm), p.min_width_mm, p.min_area_mm2)
+    img.warnings = list(img.warnings) + photo_warns                  # оцінка придатності фото (розділ 5.4 ТЗ)
     zmaps = build_zone_maps(settings, img)
     zw = zmaps.weight if zmaps else None
     unit = zmaps.unit if zmaps else None
@@ -211,6 +214,7 @@ def run_pipeline(photo: str | Path, settings: Settings, restored: dict | None = 
         "photo": Path(photo).name,
         "algorithm_version": ALGORITHM_VERSION,
         "work_size_px": list(img.work_size),
+        "photo_assessment": photo_metrics,
         "canvas_mm": [round(img.width_mm, 1), round(img.height_mm, 1)],
         "mode": settings.mode,
         "colors_requested": k,

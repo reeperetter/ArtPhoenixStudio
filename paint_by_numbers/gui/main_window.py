@@ -28,6 +28,7 @@ from ..project import ProjectError, open_project
 from ..pipeline.priority_zones import MAX_WEIGHT, ZoneError, load_zones_file, parse_zones
 from ..settings import PRESETS, Settings
 from .canvas_view import ImageView, ZoneCanvas
+from ..quality.photo_assessment import assess_photo
 from .batch_dialog import BatchDialog
 from .collapsible import CollapsibleGroup
 from .help_dialog import HelpDialog
@@ -134,6 +135,11 @@ class MainWindow(QMainWindow):
         f.addWidget(self.btn_open)
         f.addWidget(self.btn_open_proj)
         f.addWidget(self.lbl_photo)
+        self.lbl_quality = QLabel("")
+        self.lbl_quality.setWordWrap(True)
+        self.lbl_quality.setStyleSheet("color: #6b6b6b;")
+        self.lbl_quality.setVisible(False)
+        f.addWidget(self.lbl_quality)
         lv.addWidget(g)
 
         # 2. полотно і режим
@@ -506,9 +512,28 @@ class MainWindow(QMainWindow):
         self.original_name = None
         self.prefs.set("last_photo_dir", str(Path(path).parent))
         self.lbl_photo.setText(Path(path).name)
+        self._show_photo_quality(path)
         self.res = None
         self._reload_canvas(fit=True)
         self.tabs.setCurrentIndex(0)
+
+    def _show_photo_quality(self, path: str) -> None:
+        """Швидка оцінка придатності фото одразу після відкриття (розділ 15.2 ТЗ, екран імпорту)."""
+        try:
+            img = load_image(path, self.sp_w.value(), None if self.cb_auto_h.isChecked() else self.sp_h.value(), 2.0)
+            p = PRESETS[self.cmb_mode.currentData()]
+            _m, warns = assess_photo(img.bgr, (img.width_mm, img.height_mm), p.min_width_mm, p.min_area_mm2)
+        except Exception:                                         # оцінка не має заважати відкриттю фото
+            self.lbl_quality.setVisible(False)
+            return
+        warns = [w for w in warns if w["code"] != "IMG_CROPPED"] + [w for w in img.warnings if w["code"] == "IMG_LOW_RES"]
+        if warns:
+            self.lbl_quality.setText(tr("Якість фото:") + "\n" + "\n".join("• " + tr(w["message"]) for w in warns))
+            self.lbl_quality.setToolTip("\n\n".join(tr(w["message"]) + "\n→ " + tr(w["recommendation"]) for w in warns))
+        else:
+            self.lbl_quality.setText(tr("Якість фото: придатне до обробки"))
+            self.lbl_quality.setToolTip("")
+        self.lbl_quality.setVisible(True)
 
     def _schedule_reload(self, *_):
         self._reload_timer.start()
@@ -522,6 +547,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, tr("Не вдалося відкрити фото"), tr(str(e)))
             self.photo = None
             self.lbl_photo.setText(tr("файл не вибрано"))
+            self.lbl_quality.setVisible(False)
             self._update_buttons()
             return
         self.canvas.set_image(img.bgr, keep_view=not fit)
