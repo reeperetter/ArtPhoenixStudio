@@ -167,7 +167,7 @@ def write_spec_pdf(path: str | Path, spec: dict, meta: dict, warnings: list[dict
     head = [t["num"], t["code"], t["color"], t["hexc"], t["area"], t["regions"], t["cont"], t["vol"]]
     rows = [head]
     for p in spec["paints"]:
-        rows.append([p["number"], p["paint_code"] + (f'\n{p["paint_name"]}' if p["paint_name"] else ""), "", p["hex"], f'{p["area_mm2"]:,.0f}'.replace(",", " "),
+        rows.append([p["number"], p["paint_code"] + (f'\n{p["paint_name"]}' if p["paint_name"] else "") + (f'\n{" + ".join(p["pigments"])}' if p.get("pigments") else ""), "", p["hex"], f'{p["area_mm2"]:,.0f}'.replace(",", " "),
                      p["regions"], p["containers"], f'{p["total_ml"]:g}'])
     tot = spec["totals"]
     rows.append([t["total"], "", "", "", f'{tot["canvas_area_mm2"]:,.0f}'.replace(",", " "),

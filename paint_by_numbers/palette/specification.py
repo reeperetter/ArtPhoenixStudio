@@ -43,6 +43,7 @@ def compute_spec(rm: RegionMap, geom: Geometry, settings: Settings, px_per_mm: f
             "number": i + 1,
             "paint_code": m.paint["code"] if m else f"P-{i + 1:03d}",
             "paint_name": m.paint["name"] if m else "",
+            "pigments": list(m.paint.get("pigments") or []) if m else [],
             "catalog_delta_e2000": round(m.delta_e2000, 2) if m else None,
             "catalog_duplicate": bool(m.duplicate) if m else False,
             "hex": f"#{r_:02X}{g:02X}{b:02X}",

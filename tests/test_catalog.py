@@ -77,3 +77,21 @@ def test_pipeline_uses_exact_stock_colors(tmp_path):
     stock = np.array([c["lab"] for c in cat])
     assert all(np.abs(stock - c).sum(1).min() < 0.01 for c in res.rm.palette_lab)
     assert res.report["catalog"]["max_delta_e2000"] < 0.05 and len(res.rm.palette_lab) <= 8
+
+
+def test_pigment_index_parse_normalize_and_flow(tmp_path):
+    import pytest
+    from paint_by_numbers.palette.catalog import CatalogError, normalize_pigments, parse_catalog, pigment_text
+    assert normalize_pigments("pb29, PW6 + py150") == ["PB29", "PW6", "PY150"]
+    assert normalize_pigments(["pb15:3", "pbk7", "PBr7", "pw6", "PW6"]) == ["PB15:3", "PBk7", "PBr7", "PW6"]
+    assert normalize_pigments(None) == [] and normalize_pigments("") == []
+    for bad in ("XX1", "PB", "PB1234", "P29", "blue"):
+        with pytest.raises(CatalogError):
+            normalize_pigments(bad, "S-1")
+    with pytest.raises(CatalogError):
+        normalize_pigments(5, "S-1")
+    _, cat = parse_catalog({"paints": [{"code": "A", "hex": "#FFFFFF", "pigments": "pw6"},
+                                       {"code": "B", "hex": "#101010"}]})
+    assert cat[0]["pigments"] == ["PW6"] and cat[1]["pigments"] == [] and pigment_text(cat[0]) == "PW6"
+    with pytest.raises(CatalogError):
+        parse_catalog({"paints": [{"code": "A", "hex": "#FFFFFF", "pigments": ["bogus"]}]})

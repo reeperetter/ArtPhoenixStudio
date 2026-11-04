@@ -349,8 +349,8 @@ class MainWindow(QMainWindow):
         self.split_v.setHandleWidth(7)
         self.split_v.addWidget(self.tabs)
         rv.addWidget(self.split_v)
-        self.tbl = QTableWidget(0, 8)
-        self.tbl.setHorizontalHeaderLabels(["№", tr("Колір"), tr("Код"), tr("Назва"), tr("Площа, мм²"), tr("Ділянок"), tr("Ємностей"), tr("мл")])
+        self.tbl = QTableWidget(0, 9)
+        self.tbl.setHorizontalHeaderLabels(["№", tr("Колір"), tr("Код"), tr("Назва"), tr("Пігмент (CI)"), tr("Площа, мм²"), tr("Ділянок"), tr("Ємностей"), tr("мл")])
         self.tbl.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.tbl.verticalHeader().setVisible(False)
         self.tbl.setToolTip(tr("Подвійний клік по рядку: змінити цей колір палітри картини"))
@@ -792,11 +792,11 @@ class MainWindow(QMainWindow):
         for i in range(len(self.seg.palette_lab)):
             p = by_number.get(i + 1)
             if p:
-                items.append((f'{p["number"]}. {p["paint_code"]} {p["paint_name"]}'.strip(), p["hex"]))
+                items.append((f'{p["number"]}. {p["paint_code"]} {p["paint_name"]} {" + ".join(p.get("pigments") or [])}'.strip(), p["hex"]))
                 self._choices.append(("pal", i))
         for c in res.settings.catalog:
             if np.abs(self.seg.palette_lab - np.asarray(c["lab"], np.float32)).sum(1).min() > 0.01:
-                items.append((tr(f'+ {c["code"]} {c.get("name", "")} (зі складу)').strip(), c["hex"]))
+                items.append((tr(f'+ {c["code"]} {c.get("name", "")} (зі складу)').strip() + (f' [{" + ".join(c["pigments"])}]' if c.get("pigments") else ""), c["hex"]))
                 self._choices.append(("stock", c["lab"]))
         self.edit_panel.set_choices(items)
         self.edit_panel.show_image(res.numbered_img, self.seg.shape[1])
@@ -913,7 +913,7 @@ class MainWindow(QMainWindow):
         paints = res.spec["paints"]
         self.tbl.setRowCount(len(paints))
         for i, p in enumerate(paints):
-            vals = [p["number"], "", p["paint_code"], p["paint_name"], f'{p["area_mm2"]:,.0f}'.replace(",", " "),
+            vals = [p["number"], "", p["paint_code"], p["paint_name"], " + ".join(p.get("pigments") or []), f'{p["area_mm2"]:,.0f}'.replace(",", " "),
                     p["regions"], p["containers"], f'{p["total_ml"]:g}']
             for j, v in enumerate(vals):
                 it = QTableWidgetItem(str(v))

@@ -33,7 +33,7 @@ class PaintPickDialog(QDialog):
         row.addStretch(1)
         v.addLayout(row)
         self.search = QLineEdit()
-        self.search.setPlaceholderText(tr("Пошук за кодом або назвою"))
+        self.search.setPlaceholderText(tr("Пошук за кодом, назвою або пігментом"))
         self.search.textChanged.connect(self._filter)
         self.lst = QListWidget()
         self.lst.itemDoubleClicked.connect(lambda _i: self.accept())
@@ -42,7 +42,7 @@ class PaintPickDialog(QDialog):
             if np.abs(used_labs - np.asarray(c["lab"], np.float32)).sum(1).min() < 0.01:
                 continue                                   # такий колір уже є в картині (його треба зливати, а не додавати)
             self._stock.append(c)
-            it = QListWidgetItem(_swatch(c["hex"]), f'{c["code"]}  {c.get("name", "")}'.strip())
+            it = QListWidgetItem(_swatch(c["hex"]), f'{c["code"]}  {c.get("name", "")}  {" + ".join(c.get("pigments") or [])}'.strip())
             it.setData(0x100, len(self._stock) - 1)
             self.lst.addItem(it)
         if catalog:

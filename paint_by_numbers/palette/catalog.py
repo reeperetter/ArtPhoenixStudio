@@ -66,6 +66,38 @@ def ciede2000(lab1: np.ndarray, lab2: np.ndarray) -> np.ndarray:
 
 
 _HEX = re.compile(r"^#?([0-9a-fA-F]{6})$")
+# Міжнародний індекс пігменту (Colour Index Generic Name): PW6, PB29, PY150, PB15:3, PBk7, PBr7, PR101 тощо.
+# Префікси: W білий, Y жовтий, O оранжевий, R червоний, V фіолетовий, B синій, G зелений, Br коричневий, Bk чорний, M металевий.
+_PIGMENT = re.compile(r"^P(W|Y|O|R|V|B|G|Br|Bk|M)(\d{1,3})(:\d{1,2})?$", re.IGNORECASE)
+_CANON = {"w": "W", "y": "Y", "o": "O", "r": "R", "v": "V", "b": "B", "g": "G", "br": "Br", "bk": "Bk", "m": "M"}
+
+
+def normalize_pigments(value, code: str = "") -> list[str]:
+    """Приводить індекси пігментів до канонічного вигляду («pb29» -> «PB29», «pbk7» -> «PBk7»). Приймає список або
+    рядок із роздільниками , ; + / і пробілами. Некоректний індекс --- CatalogError."""
+    if value in (None, "", []):
+        return []
+    if isinstance(value, str):
+        items = [t for t in re.split(r"[,;+/\s]+", value) if t]
+    elif isinstance(value, (list, tuple)):
+        items = [str(t).strip() for t in value if str(t).strip()]
+    else:
+        raise CatalogError(f"Фарба «{code}»: «pigments» має бути списком або рядком, наприклад [\"PW6\", \"PB29\"].")
+    out: list[str] = []
+    for t in items:
+        m = _PIGMENT.match(t)
+        if not m:
+            raise CatalogError(f"Фарба «{code}»: «{t}» не схоже на індекс пігменту (приклади: PW6, PB29, PY150, PB15:3).")
+        canon = f"P{_CANON[m.group(1).lower()]}{int(m.group(2))}{m.group(3) or ''}"
+        if canon not in out:
+            out.append(canon)
+    return out
+
+
+def pigment_text(paint: dict) -> str:
+    """Індекси пігментів одним рядком для документів: «PW6 + PB29» (порожньо, якщо не задано)."""
+    return " + ".join(paint.get("pigments") or [])
+
 
 
 def parse_catalog(data) -> tuple[str, list[dict]]:
@@ -103,7 +135,7 @@ def parse_catalog(data) -> tuple[str, list[dict]]:
         else:
             raise CatalogError(f"Фарба «{code}»: потрібне поле «hex» або «lab».")
         out.append({"code": code, "name": str(d.get("name", "")), "hex": hx,
-                    "lab": [round(float(v), 3) for v in lab]})
+                    "lab": [round(float(v), 3) for v in lab], "pigments": normalize_pigments(d.get("pigments"), code)})
     return name, out
 
 

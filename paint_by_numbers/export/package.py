@@ -36,16 +36,16 @@ def _write_json(path: Path, data) -> None:
 
 
 def _write_csv(path: Path, spec: dict) -> None:
-    cols = ["number", "paint_code", "paint_name", "catalog_delta_e2000", "hex", "area_mm2", "area_share_pct", "regions", "containers",
+    cols = ["number", "paint_code", "paint_name", "pigments", "catalog_delta_e2000", "hex", "area_mm2", "area_share_pct", "regions", "containers",
             "container_ml", "total_ml"]
     # ';' і BOM: так файл коректно відкривається в Excel з українськими регіональними налаштуваннями
     with open(path, "w", newline="", encoding="utf-8-sig") as f:
         w = csv.writer(f, delimiter=";")
         w.writerow(cols + ["estimate"])
         for p in spec["paints"]:
-            w.writerow([p[c] for c in cols] + ["orientational" if spec["calculation"]["provisional"] else "confirmed"])
+            w.writerow([(" + ".join(p.get(c) or []) if c == "pigments" else p.get(c)) for c in cols] + ["orientational" if spec["calculation"]["provisional"] else "confirmed"])
         t = spec["totals"]
-        w.writerow(["TOTAL", "", "", "", "", t["canvas_area_mm2"], 100, "", t["containers"], "", t["total_ml"], ""])
+        w.writerow(["TOTAL", "", "", "", "", "", t["canvas_area_mm2"], 100, "", t["containers"], "", t["total_ml"], ""])
 
 
 def build_package(res, out_root: str | Path, photo: str | Path, force: bool = False,
@@ -149,7 +149,7 @@ def build_package(res, out_root: str | Path, photo: str | Path, force: bool = Fa
             "effective": {"merged_for_numbers": res.report.get("regions_merged_for_numbers", 0), "colors": s.colors, "line_mm": res.line_mm, "canvas_mm": [res.width_mm, res.height_mm],
                           "px_per_mm": res.px_per_mm},
             "source": {"file": src_rel, "sha256": _sha256(tmp / src_rel), "original_name": original_name or photo.name},
-            "palette": [{"number": p["number"], "paint_code": p["paint_code"], "paint_name": p["paint_name"],
+            "palette": [{"number": p["number"], "paint_code": p["paint_code"], "paint_name": p["paint_name"], "pigments": p.get("pigments", []),
                          "hex": p["hex"], "lab": p["lab"]}
                         for p in res.spec["paints"]],
             "regions_file": "project/regions.npz",

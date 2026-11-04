@@ -79,8 +79,8 @@ def build_purchase_list(out_root: str | Path, bulk_ml: float | None = None, fill
                          "canvas_mm": spec.get("canvas_mm")})
         for p in spec["paints"]:
             e = paints.setdefault(p["paint_code"], {
-                "paint_code": p["paint_code"], "paint_name": p["paint_name"], "hex": p["hex"], "lab": p["lab"],
-                "orders": {}, "containers": 0, "total_ml": 0.0, "area_mm2": 0.0})
+                "paint_code": p["paint_code"], "paint_name": p["paint_name"], "pigments": " + ".join(p.get("pigments") or []),
+                "hex": p["hex"], "lab": p["lab"], "orders": {}, "containers": 0, "total_ml": 0.0, "area_mm2": 0.0})
             if ciede2000(np.array(e["lab"]), np.array(p["lab"])) > LAB_CONFLICT_DE:
                 conflicts.append({"paint_code": p["paint_code"], "order": oid})
             e["orders"][oid] = e["orders"].get(oid, 0) + p["containers"]
@@ -110,7 +110,7 @@ def build_purchase_list(out_root: str | Path, bulk_ml: float | None = None, fill
 
 # ------------------------------------------------------------------ файли
 def write_csv(data: dict, path: str | Path) -> None:
-    cols = ["paint_code", "paint_name", "hex", "orders_count", "containers", "total_ml", "area_mm2"]
+    cols = ["paint_code", "paint_name", "pigments", "hex", "orders_count", "containers", "total_ml", "area_mm2"]
     if data["bulk_ml"]:
         cols.append("bulk_units")
     with open(path, "w", newline="", encoding="utf-8-sig") as f:
@@ -147,7 +147,7 @@ def write_xlsx(data: dict, path: str | Path) -> None:
         cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
     for i, e in enumerate(data["paints"], r0 + 1):
         ws.cell(i, 1, e["paint_code"])
-        ws.cell(i, 2, e["paint_name"])
+        ws.cell(i, 2, e["paint_name"] + (f' [{e["pigments"]}]' if e.get("pigments") else ""))
         ws.cell(i, 3).fill = PatternFill("solid", fgColor=e["hex"].lstrip("#"))
         ws.cell(i, 4, e["hex"])
         ws.cell(i, 5, e["orders_count"])
@@ -244,7 +244,7 @@ def write_pdf(data: dict, path: str | Path) -> None:
         head.append(T["bulk"].format(b=data["bulk_ml"]))
     rows = [head]
     for e in data["paints"]:
-        rows.append([e["paint_code"], Paragraph(e["paint_name"] or "-", nm), "", e["orders_count"], e["containers"],
+        rows.append([e["paint_code"], Paragraph((e["paint_name"] or "-") + (f' [{e["pigments"]}]' if e.get("pigments") else ""), nm), "", e["orders_count"], e["containers"],
                      f'{e["total_ml"]:g}'] + ([e["bulk_units"]] if data["bulk_ml"] else []))
     rows.append([T["total"], "", "", t["orders"], t["containers"], f'{t["total_ml"]:g}']
                 + ([t["bulk_units"]] if data["bulk_ml"] else []))

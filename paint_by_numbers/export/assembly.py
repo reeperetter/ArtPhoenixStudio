@@ -103,7 +103,7 @@ def write_assembly_pdf(path: str | Path, spec: dict, meta: dict, kit_items: list
     head = [t["num"], t["color"], t["code"], t["cont"], t["ml"], t["picked"], t["checked"]]
     rows, many = [head], []
     for p in spec["paints"]:
-        label = p["paint_code"] + (f'\n{p["paint_name"]}' if p["paint_name"] else "")
+        label = p["paint_code"] + (f'\n{p["paint_name"]}' if p["paint_name"] else "") + (f'\n{" + ".join(p["pigments"])}' if p.get("pigments") else "")
         rows.append([p["number"], "", Paragraph(label.replace("\n", "<br/>"), nm), p["containers"], f'{p["total_ml"]:g}', box, box])
         if p["containers"] >= many_threshold:
             many.append(len(rows) - 1)
