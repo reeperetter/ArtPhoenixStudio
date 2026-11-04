@@ -137,6 +137,7 @@ class RegionEditPanel(QWidget):
     mergeRequested = Signal(float, float, float, float)
     paletteRequested = Signal(float, float, int)      # x, y, індекс кольору в списку choices
     smoothRequested = Signal(float, float, int)       # x, y, радіус у пікселях
+    smoothAllRequested = Signal(int)                  # радіус у пікселях
     polygonRequested = Signal(list, int)
     undoRequested = Signal()
     redoRequested = Signal()
@@ -165,6 +166,11 @@ class RegionEditPanel(QWidget):
         self.spn_smooth.setValue(3)
         self.spn_smooth.setToolTip(tr("Радіус згладжування в пікселях розбиття: більше число --- сильніше згладжування"))
         bar.addWidget(self.spn_smooth)
+        self.btn_smooth_all = QPushButton(tr("Згладити всі"))
+        self.btn_smooth_all.setToolTip(tr("Згладжує контури всіх ділянок одразу з силою з поля «Сила». Для всієї картини беріть 1–3: "
+                                          "сильніше можуть зникнути дрібні деталі. Можна скасувати."))
+        self.btn_smooth_all.clicked.connect(lambda: self.smoothAllRequested.emit(self.spn_smooth.value()))
+        bar.addWidget(self.btn_smooth_all)
         bar.addWidget(QLabel(tr("Колір:")))
         self.cmb = QComboBox()
         self.cmb.setMinimumWidth(220)

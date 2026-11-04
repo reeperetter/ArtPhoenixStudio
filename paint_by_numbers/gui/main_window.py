@@ -36,7 +36,7 @@ from .print_dialog import PrintProfileDialog
 from .paint_pick import PaintPickDialog
 from .region_editor import RegionEditPanel
 from ..edit import (EditError, Segmentation, add_color, merge_into, paint_polygon, rebuild_result, recolor_color,
-                    recolor_region, set_palette_color, smooth_region)
+                    recolor_region, set_palette_color, smooth_all, smooth_region)
 from .prefs import Prefs
 
 from ..i18n import tr
@@ -336,6 +336,7 @@ class MainWindow(QMainWindow):
         self.edit_panel.mergeRequested.connect(self._edit_merge)
         self.edit_panel.polygonRequested.connect(self._edit_polygon)
         self.edit_panel.smoothRequested.connect(self._edit_smooth)
+        self.edit_panel.smoothAllRequested.connect(self._edit_smooth_all)
         self.edit_panel.paletteRequested.connect(self._edit_palette)
         self.edit_panel.undoRequested.connect(self.undo_zones)
         self.edit_panel.redoRequested.connect(self.redo_zones)
@@ -858,6 +859,9 @@ class MainWindow(QMainWindow):
 
     def _edit_smooth(self, x: float, y: float, radius: int) -> None:
         self._apply_edit(lambda: smooth_region(self.seg, self.seg.region_at(x, y), radius), tr("згладжування ділянки"))
+
+    def _edit_smooth_all(self, radius: int) -> None:
+        self._apply_edit(lambda: smooth_all(self.seg, radius), tr("згладжування всіх ділянок"))
 
     def _edit_polygon(self, pts: list, idx: int) -> None:
         self._apply_edit(lambda: paint_polygon(*(lambda sc: (sc[0], pts, sc[1]))(self._edit_color(idx))), tr("зафарбований полігон"))

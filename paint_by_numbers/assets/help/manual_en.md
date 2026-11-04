@@ -132,6 +132,7 @@ The "Region editing" tab appears after the preview is created. Tools:
 - **Change colour**: a click on a region assigns it the colour chosen in the "Colour" list. The list contains the kit's colours and (with a catalogue) other stock colours. Neighbouring regions of the same colour merge automatically.
 - **Merge with neighbour**: click a region (it turns pink), then click a neighbouring one. Non-adjacent regions cannot be merged.
 - **Smooth region**: click a region. Its outline becomes smoother, and small teeth and specks disappear. The "Strength" field (1–25) sets the radius: start with 3 and increase for a stronger effect. If the outline is already smooth, the program reports that nothing changed.
+- **Smooth all** (the button next to the "Strength" field): smooths the outlines of **all regions at once**. For the whole picture use strength 1–3: larger values may erase small details (lashes, pupils). The edit can be undone with Ctrl+Z.
 - **Replace colour everywhere**: click a region, then ALL regions of the same colour receive the colour chosen in the list. This is how you edit the palette of a finished picture: replace one paint with another (from the stock; they are in the list marked "+") or merge two colours into one. A colour that no longer remains disappears from the specification.
 - **Fill polygon**: click points around the desired area, a right click (or Enter or a double click) finishes, Esc cancels. The area receives the chosen colour: this way you can split a region or fix an outline.
 - **Hand**: move and zoom.

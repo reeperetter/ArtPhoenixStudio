@@ -196,6 +196,27 @@ def smooth_region(seg: Segmentation, region: int, radius: int = 3) -> Segmentati
     return _rebuild(res, seg.palette_lab, seg)
 
 
+def smooth_all(seg: Segmentation, radius: int = 2) -> Segmentation:
+    """Згладжує контури ВСІХ ділянок одразу: мажоритарний фільтр (2r+1)² по всій картині. Нових кольорів немає, результат
+    детермінований. Дрібні деталі вужчі за радіус можуть зникнути, тому сила має бути помірною (1--5)."""
+    radius = int(radius)
+    if not 1 <= radius <= 25:
+        raise EditError("Сила згладжування --- від 1 до 25 пікселів.")
+    cmap = seg.color_map()
+    best = np.full(cmap.shape, -1.0, np.float32)
+    out = cmap.copy()
+    ksz = (2 * radius + 1, 2 * radius + 1)
+    for c in np.unique(cmap):
+        v = cv2.boxFilter((cmap == c).astype(np.float32), -1, ksz, normalize=True, borderType=cv2.BORDER_REPLICATE)
+        v = v + (cmap == c) * 1e-4
+        upd = v > best
+        out[upd] = c
+        best[upd] = v[upd]
+    if (out == cmap).all():
+        raise EditError("Контури вже гладкі: змін немає.")
+    return _rebuild(out, seg.palette_lab, seg)
+
+
 def add_color(seg: Segmentation, lab: list[float] | np.ndarray) -> tuple[Segmentation, int]:
     """Додає колір до палітри (якщо такого ще немає), повертає (нова сегментація, індекс)."""
     lab = np.asarray(lab, np.float32)

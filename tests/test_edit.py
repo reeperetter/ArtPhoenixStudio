@@ -148,3 +148,21 @@ def test_set_palette_color_changes_only_that_color_or_merges():
     assert abs(hex_to_lab("#FFFFFF")[0] - 100) < 0.5 and abs(hex_to_lab("000000")[0]) < 0.5
     with pytest.raises(EditError):
         hex_to_lab("#12345")
+
+
+def test_smooth_all_removes_specks_everywhere():
+    from paint_by_numbers.edit import EditError, Segmentation, smooth_all
+    from paint_by_numbers.pipeline.regions import connected_regions
+    import pytest
+    cm = np.zeros((60, 80), np.int32)
+    cm[:, 40:] = 1
+    cm[10, 10] = 1                      # дрібні вкраплення в обох половинах
+    cm[30, 60] = 0
+    L, col = connected_regions(cm, 2)
+    seg = Segmentation(L, col, np.array([[30, 0, 0], [80, 0, 0]], np.float32), len(col), 0)
+    out = smooth_all(seg, 2)
+    assert len(out.region_color) == 2 and len(out.palette_lab) == 2
+    with pytest.raises(EditError):
+        smooth_all(out, 2)              # вже гладко
+    with pytest.raises(EditError):
+        smooth_all(seg, 0)
