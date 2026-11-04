@@ -9,15 +9,15 @@ import threading
 from pathlib import Path
 
 import numpy as np
-from PySide6.QtCore import QThread, QTimer, Qt, Signal
-from PySide6.QtGui import QAction, QActionGroup, QBrush, QColor, QKeySequence
+from PySide6.QtCore import QThread, QTimer, QUrl, Qt, Signal
+from PySide6.QtGui import QAction, QActionGroup, QBrush, QColor, QDesktopServices, QKeySequence
 from PySide6.QtWidgets import (QAbstractItemView, QApplication, QButtonGroup, QCheckBox, QComboBox, QDoubleSpinBox, QFileDialog,
                                QFormLayout, QGroupBox, QHBoxLayout, QLabel, QLineEdit, QListWidget,
                                QListWidgetItem, QMainWindow, QMenu, QMessageBox, QProgressBar, QPushButton, QScrollArea,
                                QSpinBox, QSplitter, QTableWidget, QTableWidgetItem, QTabWidget, QToolButton,
                                QVBoxLayout, QWidget)
 
-from .. import i18n
+from .. import applog, i18n
 from . import branding, wheel_guard
 from ..compare import default_variants, select_best
 from ..generate import Cancelled, run_pipeline
@@ -88,6 +88,7 @@ class Job(QThread):
         except (ProjectError, ZoneError, CatalogError) as e:     # повідомлення вже зрозуміле оператору
             self.failed.emit(str(e))
         except Exception as e:
+            applog.log_exception(e, "збій фонової операції")
             self.failed.emit(f"{type(e).__name__}: {e}")
 
 
@@ -469,9 +470,19 @@ class MainWindow(QMainWindow):
         a.setShortcut(QKeySequence.StandardKey.HelpContents)          # F1
         a.triggered.connect(lambda _=False: self.show_help())
         hm.addAction(a)
+        a = QAction(tr("Відкрити журнал помилок"), self)
+        a.triggered.connect(lambda _=False: self.open_error_log())
+        hm.addAction(a)
         a = QAction(tr("Про програму"), self)
         a.triggered.connect(lambda _=False: self.show_about())
         hm.addAction(a)
+
+    def open_error_log(self) -> None:
+        p = applog.log_path()
+        if not p.is_file():
+            QMessageBox.information(self, tr("Журнал помилок"), tr("Журнал порожній: помилок ще не було."))
+            return
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(p)))
 
     def change_language(self, code: str) -> None:
         """Зберігає мову й пропонує перезапуск (тексти вікон будуються один раз під час запуску)."""

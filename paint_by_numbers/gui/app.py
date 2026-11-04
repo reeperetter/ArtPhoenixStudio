@@ -12,6 +12,9 @@ def main(argv: list[str] | None = None) -> int:
     from .. import i18n
     from . import branding
     from .prefs import Prefs
+    from .. import applog
+    applog.setup()
+    applog.install_excepthook()
     branding.set_windows_app_id()
     app = QApplication(argv if argv is not None else sys.argv)
     prefs = Prefs()

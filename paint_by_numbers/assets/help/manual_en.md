@@ -248,7 +248,7 @@ The bleed and wrap margin are white. Parameters depend on the print shop or prin
 
 **A critical warning blocks the package.** Fix the cause (see the warnings table) and create the preview again. Creating files despite errors is possible only after a manual check of the layout.
 
-**The program does not start or shows an error.** Save the error text and contact the developer.
+**The program does not start or shows an error.** Open "Help → Open error log" and send the file to the developer. The log keeps no folder names or home directory (only file names). Location: Windows `%LOCALAPPDATA%\ArtPhoenixStudio\errors.log`, Linux `~/.local/state/ArtPhoenixStudio/errors.log`, macOS `~/Library/Logs/ArtPhoenixStudio/errors.log`.
 
 ## Glossary
 
