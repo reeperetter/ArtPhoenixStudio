@@ -37,15 +37,33 @@ def lab_to_hex(lab) -> str:
     return f"#{r:02X}{g:02X}{b:02X}"
 
 
+def _skin_c0(L: float) -> float:
+    """Типова насиченість шкіри залежно від світлості: найнасиченіша в середніх тонах, блідіє до світлого й темного."""
+    return 14.0 + 22.0 * math.exp(-(((L - 55.0) / 24.0) ** 2))
+
+
+def skin_set(n: int = 28) -> list[tuple[str, list[float]]]:
+    """Шкіра як тривимірна хмара (світлість x відтінок x насиченість), а не одновимірний ряд за світлістю: різні
+    освітлення й засмага дають однакову світлість, але різну теплоту. Кандидати --- рівномірна сітка в межах хмари
+    (відтінок 32..60 градусів, насиченість 0.5..1.35 від типової для цієї світлості, в межах sRGB); n кольорів
+    обираються жадібним k-медоїдним покриттям, тож хмара покрита рівномірно. Вихід відсортовано від світлих до темних."""
+    cand = []
+    for L in np.arange(26.0, 90.0, 3.0):
+        c0 = _skin_c0(L)
+        for h in np.arange(32.0, 61.0, 4.0):
+            for f in np.arange(0.5, 1.36, 0.1):
+                C = c0 * f
+                lab = [float(L), C * math.cos(math.radians(h)), C * math.sin(math.radians(h))]
+                if _in_srgb(*lab):
+                    cand.append(lab)
+    cand = np.array(cand, np.float32)
+    idx = select(cand, np.ones(len(cand)), cand, np.zeros((0, 3), np.float32), n)
+    chosen = sorted((cand[i] for i in idx), key=lambda c: -c[0])
+    return [(f"Шкіра {i + 1}", [float(v) for v in c]) for i, c in enumerate(chosen)]
+
+
 def skin_ramp() -> list[tuple[str, list[float]]]:
-    """Ряд відтінків шкіри: рівні кроки L*; b* росте до темнішої шкіри, a* (рум'янець) ~ 8 + 0.4 b*.
-    ITA кожного кроку = arctan((L*-50)/b*) (див. докстрінг), виходить від ~+60° до ~-40°."""
-    out = []
-    n = len(SKIN_L)
-    for i, L in enumerate(SKIN_L):
-        b = 14.0 + 6.0 * i / (n - 1)
-        out.append((f"Шкіра {i + 1}", [float(L), 8.0 + 0.4 * b, b]))
-    return out
+    return skin_set()
 
 
 def anchors() -> list[tuple[str, list[float]]]:

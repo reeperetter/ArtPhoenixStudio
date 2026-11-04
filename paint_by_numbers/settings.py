@@ -62,7 +62,7 @@ class Settings:
     catalog_max_de2000: float = 10.0                  # гіпотеза: далі за цей поріг колір фарби помітно відрізняється
     detail: float = 1.0                               # множник деталізації 0.5..3: більше = дрібніші ділянки й вужчі деталі
     auto_detail: bool = True                          # автоматична деталізація шкіри/облич (кольоровий поріг, без ШІ)
-    auto_detail_strength: float = 1.0                 # вага автозони, як у ручної зони (0..2)
+    auto_detail_strength: float = 2.0                 # вага автозони, як у ручної зони (0..2)
     extra: dict = field(default_factory=dict)
 
     @property
