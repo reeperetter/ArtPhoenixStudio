@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QButtonGroup, QC
                                QSpinBox, QSplitter, QTableWidget, QTableWidgetItem, QTabWidget, QToolButton,
                                QVBoxLayout, QWidget)
 
-from .. import applog, i18n, orders
+from .. import applog, autosave, i18n, orders
 from . import branding, wheel_guard
 from ..compare import default_variants, select_best
 from ..generate import Cancelled, run_pipeline
@@ -104,6 +104,8 @@ class MainWindow(QMainWindow):
         self.zones: list[dict] = []
         self.res = None
         self.job: Job | None = None
+        self._unsaved = False                           # є ручні правки, не збережені в пакет
+        self._restoring = False                         # відкривається знімок автозбереження
         self._pending_apply: int | None = None
         self.history = UndoStack(([], -1))
         self._restoring = False
@@ -507,6 +509,18 @@ class MainWindow(QMainWindow):
         dlg.openRequested.connect(self.open_project_dialog)
         dlg.exec()
 
+    def offer_recovery(self) -> None:
+        """Після збою чи закриття з незбереженими правками пропонує відновити останній знімок."""
+        if not autosave.has_recovery():
+            return
+        ans = QMessageBox.question(self, tr("Відновлення роботи"),
+                                   tr("Знайдено незбережену роботу з попереднього сеансу (ручні правки). Відновити її?"))
+        if ans == QMessageBox.StandardButton.Yes:
+            self._restoring = True
+            self.open_project_dialog(str(autosave.recovery_dir()))
+        else:
+            autosave.clear()
+
     def open_error_log(self) -> None:
         p = applog.log_path()
         if not p.is_file():
@@ -882,6 +896,7 @@ class MainWindow(QMainWindow):
             self._apply_variant(row)
 
     def _job_failed(self, msg: str) -> None:
+        self._restoring = False
         self.lbl_status.setText(tr("Помилка"))
         QMessageBox.critical(self, tr("Помилка"), tr(msg))
 
@@ -1021,6 +1036,8 @@ class MainWindow(QMainWindow):
             self.seg_history.push(seg, label)
         res.report["manual_edits"] = self.seg_history.position          # діючі правки (після Ctrl+Z меншає)
         self._generated(res, edited=True)
+        self._unsaved = True
+        autosave.snapshot_async(res, self.photo, self.original_name)
         self.lbl_status.setText(tr(f"{label[:1].upper() + label[1:]}: {res.report['regions_final']} ділянок, "
                                 f"{res.spec['totals']['paints']} кольорів, {res.spec['totals']['containers']} ємностей."))
 
@@ -1089,6 +1106,8 @@ class MainWindow(QMainWindow):
                 QTimer.singleShot(0, lambda: self.save_package(folder, force=True))
             return
         self._remember_project(str(info["dir"]))
+        self._unsaved = False
+        autosave.clear()
         self.lbl_status.setText(tr(f"Пакет збережено: {info['dir']}"))
         QMessageBox.information(self, tr("Готово"), tr(f"Пакет збережено:\n{info['dir']}\n\n"
                                 "Пізніше його можна відкрити без перерахунку: «Відкрити проєкт»."))
@@ -1220,6 +1239,8 @@ class MainWindow(QMainWindow):
         QMessageBox.information(self, tr("Налаштування"), tr("Збережені налаштування скинуто до типових."))
 
     def closeEvent(self, e):
+        if not self._unsaved:
+            autosave.clear()                            # знімок лишається лише при незбережених правках
         self._save_prefs()
         super().closeEvent(e)
 
@@ -1287,9 +1308,13 @@ class MainWindow(QMainWindow):
         self.res = res                      # _reload_canvas/_refresh_zone_list не скасовують результат: він встановлюється останнім
         self._generated(res)
         self.lbl_status.setText(tr("Проєкт відкрито без перерахунку. ") + self.lbl_status.text())
-        proj_dir = Path(res.source_photo).parent.parent
-        self.prefs.set("last_save_dir", str(proj_dir.parent))
-        self._remember_project(str(proj_dir))
+        if self._restoring:
+            self._restoring = False
+            self._unsaved = True                        # відновлена робота ще не збережена пакетом
+        else:
+            proj_dir = Path(res.source_photo).parent.parent
+            self.prefs.set("last_save_dir", str(proj_dir.parent))
+            self._remember_project(str(proj_dir))
 
     # ------------------------------------------------------------------ пакетна обробка
     def open_batch(self) -> None:

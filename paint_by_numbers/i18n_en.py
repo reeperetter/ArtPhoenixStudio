@@ -418,4 +418,6 @@ EN = {
     'Буде безповоротно видалено всю папку замовлення разом із фото клієнта, проєктом і пакетом:\n{}\n\nПродовжити?': 'The whole order folder will be deleted permanently, including the customer photo, the project and the package:\n{}\n\nContinue?',
     'Це не папка замовлення (order_XXXXXX з project/project.json): видалення скасовано.': 'This is not an order folder (order_XXXXXX with project/project.json): deletion cancelled.',
     'Небезпечний шлях: видалення скасовано.': 'Unsafe path: deletion cancelled.',
+    'Відновлення роботи': 'Restore work',
+    'Знайдено незбережену роботу з попереднього сеансу (ручні правки). Відновити її?': 'Unsaved work from the previous session (manual edits) was found. Restore it?',
 }

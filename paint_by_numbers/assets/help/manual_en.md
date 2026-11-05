@@ -151,6 +151,8 @@ After the preview is created you can change a **single palette colour** of the p
 
 Ctrl+Z and Ctrl+Y on this tab undo and redo **region edits** (up to 30 steps). After every edit the outlines, numbers and specification are recalculated in 1–3 seconds.
 
+**Autosave.** After every edit the program quietly saves a snapshot of your work to a service folder (next to the error log; no copy of the customer photo is made, only the path to the original). If the program crashes or you close it without saving a package, it offers to restore the work at the next start. Ctrl+Z history starts afresh after a restore. The snapshot is deleted after you save a package and when you close with no unsaved edits. The original photo must stay where it was.
+
 A new preview discards manual edits (the program asks for confirmation). A saved package contains the edited segmentation.
 
 ## How to get the best result

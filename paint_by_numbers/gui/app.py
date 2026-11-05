@@ -41,6 +41,9 @@ def main(argv: list[str] | None = None) -> int:
             w.show_help(i18n.tr("Швидкий старт"))
     if len(app.arguments()) > 1:
         w.open_photo(app.arguments()[1])
+    else:
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(300, w.offer_recovery)
     return app.exec()
 
 
