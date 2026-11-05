@@ -26,3 +26,10 @@ def test_log_exception_writes_file(tmp_path):
     for h in list(lg.handlers):
         lg.removeHandler(h)
         h.close()
+
+
+def test_third_party_notices_present():
+    from pathlib import Path
+    t = (Path(applog.__file__).parent / "assets" / "THIRD_PARTY_NOTICES.md").read_text(encoding="utf-8")
+    for name in ("NumPy", "OpenCV", "PySide6", "ReportLab"):
+        assert name in t

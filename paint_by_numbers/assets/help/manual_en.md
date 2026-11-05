@@ -231,6 +231,8 @@ The bleed and wrap margin are white. Parameters depend on the print shop or prin
 | Cancel drawing | Esc |
 | This manual | F1 |
 
+The list of third-party libraries and their licences is under "Help → About → Show Details" (file `assets/THIRD_PARTY_NOTICES.md`).
+
 ## FAQ
 
 **Why is the container count approximate?** Because the coverage norm N has not been measured yet. Measure it and tick "norm N confirmed".

@@ -770,6 +770,11 @@ class MainWindow(QMainWindow):
         box.setText(tr(f"<b>{branding.APP_NAME}</b><br>Версія алгоритму {ALGORITHM_VERSION}<br>Автор: reeperetter<br><br>"
                           "Перетворює фото на виробничий пакет: контури з номерами, специфікація фарб, файли для друку.<br>"
                           "Усі обчислення виконуються на цьому комп'ютері класичними алгоритмами, без штучного інтелекту й без інтернету."))
+        notices = Path(__file__).resolve().parent.parent / "assets" / "THIRD_PARTY_NOTICES.md"
+        try:
+            box.setDetailedText(notices.read_text(encoding="utf-8"))      # «Show Details…»: сторонні компоненти й ліцензії
+        except OSError:
+            pass
         box.exec()
 
     # ------------------------------------------------------------------ друк
