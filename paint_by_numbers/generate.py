@@ -61,6 +61,7 @@ class Result:
     blocked: bool = False
     source_photo: Path | None = None       # вихідний файл (при відкритті проєкту --- копія з пакета)
     original_name: str | None = None
+    overlay_img: np.ndarray = field(repr=False, default=None)      # контури поверх оригіналу
 
 
 class Cancelled(Exception):
@@ -197,6 +198,7 @@ def run_pipeline(photo: str | Path, settings: Settings, restored: dict | None = 
     numbered_img = preview.render_vector(geom.chains, rm.labels.shape, spots, PREVIEW_SCALE, line_px, tint=color_img)
     palette_img = preview.render_palette(rm)
     compare_img = preview.compare_panel(img.bgr, color_img, contour_img)
+    overlay_img = preview.overlay_contours(img.bgr, contour_img)
     lap("render")
 
     # метрики схожості (жодна окрема метрика не є абсолютною, розділ 13.4 ТЗ)
@@ -247,7 +249,7 @@ def run_pipeline(photo: str | Path, settings: Settings, restored: dict | None = 
     return Result(settings, rm, geom, spots, spec, report, warns, img.width_mm, img.height_mm, ppm, p.line_mm,
                   color_img, contour_img, numbered_img, palette_img, compare_img,
                   preview.render_zones(img.bgr, zmaps) if zmaps else None, palette_lab_raw=palette_raw,
-                  source_photo=Path(photo), original_name=Path(photo).name)
+                  source_photo=Path(photo), original_name=Path(photo).name, overlay_img=overlay_img)
 
 
 def build_zone_maps(settings: Settings, img) -> ZoneMaps | None:

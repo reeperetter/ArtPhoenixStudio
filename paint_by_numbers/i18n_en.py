@@ -420,4 +420,5 @@ EN = {
     'Небезпечний шлях: видалення скасовано.': 'Unsafe path: deletion cancelled.',
     'Відновлення роботи': 'Restore work',
     'Знайдено незбережену роботу з попереднього сеансу (ручні правки). Відновити її?': 'Unsaved work from the previous session (manual edits) was found. Restore it?',
+    'Контури на фото': 'Outlines on photo',
 }

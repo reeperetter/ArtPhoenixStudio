@@ -29,6 +29,7 @@ The blocks on the left **collapse when you click their title** (▾/▸), so the
 - **Colours**: the picture in paint colours;
 - **Region editing**: manual edits;
 - **Comparison**: original, coloured picture and outline side by side;
+- **Outlines on photo**: the painting outlines (red) over the original. Check which details were lost or distorted: if the lines do not follow an important shape (eyes, lips, silhouette), add a priority zone or fix regions by hand. The image is saved in the package as `quality/overlay_contours.png`;
 - **Variants**: the result of the best-variant search.
 
 **At the bottom** are three tabs: "Paint specification" (colours, areas, container counts), "Warnings" (what to check) and "Variants".

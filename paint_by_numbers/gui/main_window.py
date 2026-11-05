@@ -362,11 +362,13 @@ class MainWindow(QMainWindow):
         self.view_numbers = ImageView()
         self.view_color = ImageView()
         self.view_compare = ImageView()
+        self.view_overlay = ImageView()
         self.view_variants = ImageView()
         self.tabs.addTab(self.canvas, tr("Фото і зони"))
         self.tabs.addTab(self.view_numbers, tr("Контури з номерами"))
         self.tabs.addTab(self.view_color, tr("Кольори"))
         self.tabs.addTab(self.view_compare, tr("Порівняння"))
+        self.tabs.addTab(self.view_overlay, tr("Контури на фото"))
         self.tabs.addTab(self.view_variants, tr("Варіанти"))
         self.edit_panel = RegionEditPanel()
         self.tabs.insertTab(3, self.edit_panel, tr("Редагування ділянок"))
@@ -906,6 +908,8 @@ class MainWindow(QMainWindow):
         self.view_numbers.set_image(res.numbered_img, keep_view=keep)
         self.view_color.set_image(res.color_img, keep_view=keep)
         self.view_compare.set_image(res.compare_img, keep_view=keep)
+        if res.overlay_img is not None:
+            self.view_overlay.set_image(res.overlay_img, keep_view=keep)
         if not edited:
             self.seg = Segmentation.from_result(res)
             self.seg_history.reset(self.seg)

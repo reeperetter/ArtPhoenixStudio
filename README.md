@@ -64,6 +64,7 @@ palette/palette.png, paint_list.csv  палітра; перелік фарб (р
 production/production_specification.pdf|json   специфікація: номери, зразки, площі, ємності
 quality/quality_report.json          метрики та попередження (код, серйозність, ділянки, рекомендація)
 quality/compare.png                  оригінал | еталон | контури
+quality/overlay_contours.png         контури розмальовки поверх оригіналу
 ```
 
 Пакет збирається у тимчасовій папці й підміняє попередній лише після успіху. Критичні помилки

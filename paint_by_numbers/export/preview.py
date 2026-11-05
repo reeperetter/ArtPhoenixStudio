@@ -124,6 +124,17 @@ def compare_panel(orig: np.ndarray, color: np.ndarray, contours: np.ndarray, hei
     return np.hstack([fit(orig), fit(color), fit(contours)])
 
 
+def overlay_contours(orig: np.ndarray, contours: np.ndarray, color=(40, 40, 235)) -> np.ndarray:
+    """Контури розмальовки поверх оригінального фото (ТЗ 15.3): видно, які деталі втрачено чи спотворено.
+    contours --- біле тло з темними лініями (render_vector); лінії фарбуються color (BGR)."""
+    h, w = contours.shape[:2]
+    base = cv2.resize(orig, (w, h), interpolation=cv2.INTER_AREA if orig.shape[1] > w else cv2.INTER_CUBIC)
+    g = contours if contours.ndim == 2 else cv2.cvtColor(contours, cv2.COLOR_BGR2GRAY)
+    a = (1.0 - g.astype(np.float32) / 255.0)[..., None]          # 0 на білому, 1 на чорній лінії
+    out = base.astype(np.float32) * (1 - a) + np.array(color, np.float32) * a
+    return np.clip(out, 0, 255).astype(np.uint8)
+
+
 def render_zones(bgr: np.ndarray, zmaps) -> np.ndarray:
     """Фото із підсвіченими зонами пріоритету (для перевірки оператором)."""
     tint = np.array([40, 60, 235], np.float32)          # червонуватий (BGR)

@@ -60,3 +60,15 @@ def test_gui_offer_recovery(tmp_path, monkeypatch):
     win2._unsaved = True
     win2.close()
     assert autosave.has_recovery(rec)                         # незбережені правки: знімок лишається
+
+
+def test_overlay_contours(tmp_path):
+    import numpy as np
+    from paint_by_numbers.export.preview import overlay_contours
+    orig = np.full((50, 100, 3), 200, np.uint8)
+    cont = np.full((100, 200, 3), 255, np.uint8)
+    cont[40:44, :] = 0                                   # чорна лінія
+    out = overlay_contours(orig, cont)
+    assert out.shape == cont.shape
+    assert tuple(out[42, 10]) == (40, 40, 235)           # лінія зафарбована
+    assert tuple(out[5, 10]) == (200, 200, 200)          # решта --- оригінал
