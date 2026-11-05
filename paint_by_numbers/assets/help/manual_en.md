@@ -188,6 +188,8 @@ The fields "Order number", "Project name" and "Shop name" go into the documents.
 
 "Open project (order folder)…" (Ctrl+Shift+O) restores a saved order: settings, zones, paints, manual edits and the result, without a full recalculation (a few seconds). You can open either the `order_…` folder or the `project/project.json` file.
 
+"File → Recent projects" lists the 10 most recently opened or saved orders. "Orders: search, delete…" (Ctrl+F) searches the chosen folder (and its first-level subfolders) by order number or name, opens an order on double-click and deletes it. **Deletion is irreversible**: the whole order folder disappears (customer photo, project, package); the program asks for confirmation and deletes only `order_…` folders that contain `project/project.json`. This covers the requirement to delete the customer's photo once the order is done.
+
 ## Batch processing
 
 "Batch processing (many photos)…" (Ctrl+B) processes many photos in a row:
@@ -221,6 +223,7 @@ The bleed and wrap margin are white. Parameters depend on the print shop or prin
 | Create preview | Ctrl+R |
 | Save package | Ctrl+S |
 | Batch processing | Ctrl+B |
+| Search and delete orders | Ctrl+F |
 | Undo / redo (zones or region edits depending on the tab) | Ctrl+Z / Ctrl+Y |
 | Fit image to window | 0, Home or double click |
 | Delete selected zone | Delete |

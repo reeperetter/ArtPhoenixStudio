@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QButtonGroup, QC
                                QSpinBox, QSplitter, QTableWidget, QTableWidgetItem, QTabWidget, QToolButton,
                                QVBoxLayout, QWidget)
 
-from .. import applog, i18n
+from .. import applog, i18n, orders
 from . import branding, wheel_guard
 from ..compare import default_variants, select_best
 from ..generate import Cancelled, run_pipeline
@@ -35,6 +35,7 @@ from .collapsible import CollapsibleGroup
 from .help_dialog import HelpDialog
 from .history import UndoStack
 from .print_dialog import PrintProfileDialog
+from .orders_dialog import OrdersDialog
 from .paint_pick import PaintPickDialog
 from .region_editor import RegionEditPanel
 from ..edit import (EditError, Segmentation, add_color, merge_into, paint_polygon, rebuild_result, recolor_color,
@@ -437,6 +438,7 @@ class MainWindow(QMainWindow):
         m = self.menuBar().addMenu(tr("Файл"))
         for text, fn, key in ((tr("Відкрити фото…"), self.open_photo, QKeySequence.StandardKey.Open),
                               (tr("Відкрити проєкт (папку замовлення)…"), self.open_project_dialog, QKeySequence("Ctrl+Shift+O")),
+                              (tr("Замовлення: пошук, видалення…"), self.open_orders, QKeySequence("Ctrl+F")),
                               (tr("Пакетна обробка…"), self.open_batch, QKeySequence("Ctrl+B")),
                               (tr("Зони із файлу…"), self.load_zones, None), (tr("Зони у файл…"), self.save_zones, None),
                               (tr("Створити превʼю"), self.generate, QKeySequence("Ctrl+R")),
@@ -448,6 +450,9 @@ class MainWindow(QMainWindow):
             if key:
                 a.setShortcut(key)
             m.addAction(a)
+        self.recent_menu = QMenu(tr("Останні проєкти"), self)
+        self.recent_menu.aboutToShow.connect(self._fill_recent)
+        m.insertMenu(m.actions()[2], self.recent_menu)          # після «Відкрити проєкт»
         lm = m.addMenu("Мова / Language")                       # перемикач мови (діє після перезапуску)
         grp = QActionGroup(self)
         for code, name in i18n.LANGUAGES.items():
@@ -476,6 +481,31 @@ class MainWindow(QMainWindow):
         a = QAction(tr("Про програму"), self)
         a.triggered.connect(lambda _=False: self.show_about())
         hm.addAction(a)
+
+    def _recent(self) -> list[str]:
+        return orders.parse_recent(self.prefs.get("recent"))
+
+    def _remember_project(self, folder: str) -> None:
+        self.prefs.set("recent", json.dumps(orders.add_recent(self._recent(), folder), ensure_ascii=False))
+
+    def _fill_recent(self) -> None:
+        self.recent_menu.clear()
+        shown = [f for f in self._recent() if orders.is_order_dir(Path(f))]
+        for f in shown:
+            info = orders.read_info(f) or {}
+            label = f"{info.get('order_number', '')} {info.get('project_name', '')}".strip() or Path(f).name
+            a = self.recent_menu.addAction(label)
+            a.setToolTip(f)
+            a.triggered.connect(lambda _=False, p=f: self.open_project_dialog(p))
+        if not shown:
+            self.recent_menu.addAction(tr("(порожньо)")).setEnabled(False)
+
+    def open_orders(self) -> None:
+        if self.job:
+            return
+        dlg = OrdersDialog(self.prefs.get("last_save_dir"), self)
+        dlg.openRequested.connect(self.open_project_dialog)
+        dlg.exec()
 
     def open_error_log(self) -> None:
         p = applog.log_path()
@@ -1053,6 +1083,7 @@ class MainWindow(QMainWindow):
             if ans == QMessageBox.StandardButton.Yes:
                 QTimer.singleShot(0, lambda: self.save_package(folder, force=True))
             return
+        self._remember_project(str(info["dir"]))
         self.lbl_status.setText(tr(f"Пакет збережено: {info['dir']}"))
         QMessageBox.information(self, tr("Готово"), tr(f"Пакет збережено:\n{info['dir']}\n\n"
                                 "Пізніше його можна відкрити без перерахунку: «Відкрити проєкт»."))
@@ -1251,7 +1282,9 @@ class MainWindow(QMainWindow):
         self.res = res                      # _reload_canvas/_refresh_zone_list не скасовують результат: він встановлюється останнім
         self._generated(res)
         self.lbl_status.setText(tr("Проєкт відкрито без перерахунку. ") + self.lbl_status.text())
-        self.prefs.set("last_save_dir", str(Path(res.source_photo).parent.parent.parent))
+        proj_dir = Path(res.source_photo).parent.parent
+        self.prefs.set("last_save_dir", str(proj_dir.parent))
+        self._remember_project(str(proj_dir))
 
     # ------------------------------------------------------------------ пакетна обробка
     def open_batch(self) -> None:
