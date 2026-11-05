@@ -51,6 +51,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--catalog", default=None, help="JSON-каталог фарб (склад) або імʼя вбудованої палітри, напр. starter_100; кольори набору вибираються зі складу")
     ap.add_argument("--catalog-snap", action="store_true",
                     help="старий режим: спершу вільний K-Means, потім підбір найближчих фарб (типово кольори вибираються одразу зі складу)")
+    ap.add_argument("--mix", action="store_true",
+                    help="--catalog = БАЗОВІ фарби: кольори набору змішуються з них (рецепти в мл на ємність)")
+    ap.add_argument("--mix-components", type=int, default=3, help="максимум базових фарб у відтінку (1..4)")
+    ap.add_argument("--mix-parts", type=int, default=12, help="на скільки часток ділиться ємність (12 = крок 0,25 мл для 3 мл)")
     ap.add_argument("--catalog-max-de", type=float, default=10.0, help="поріг ΔE2000 для попередження CAT_FAR")
     ap.add_argument("--compare", action="store_true",
                     help="перебрати варіанти (режим x кількість кольорів), обрати найкращий і зібрати для нього пакет")
@@ -148,7 +152,7 @@ def main(argv: list[str] | None = None) -> int:
     s = Settings(extra=extra, catalog=catalog, catalog_select=not a.catalog_snap, catalog_max_de2000=a.catalog_max_de, mode=a.mode, n_colors=a.colors, width_mm=a.width_mm, height_mm=a.height_mm,
                  px_per_mm=a.px_per_mm, seed=a.seed, order_number=a.order, project_name=a.name,
                  coverage_mm2_per_container=a.coverage_mm2, safety_factor=a.safety_factor,
-                 coverage_confirmed=a.coverage_confirmed, detail=a.detail, auto_detail=not a.no_auto_detail, zones=zones, zone_feather_mm=a.zone_feather_mm)
+                 coverage_confirmed=a.coverage_confirmed, mix_mode=a.mix, mix_max_components=a.mix_components, mix_parts=a.mix_parts, detail=a.detail, auto_detail=not a.no_auto_detail, zones=zones, zone_feather_mm=a.zone_feather_mm)
     if a.batch:
         return run_batch_cli(a, s)
     if a.preview_zones:

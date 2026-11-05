@@ -60,6 +60,9 @@ class Settings:
     catalog: list = field(default_factory=list)       # каталог фарб (palette/catalog.py); порожній -> без підбору
     catalog_select: bool = True                       # квантування одразу з кольорів каталогу (False: K-Means, потім підбір фарб)
     catalog_max_de2000: float = 10.0                  # гіпотеза: далі за цей поріг колір фарби помітно відрізняється
+    mix_mode: bool = False                            # каталог = БАЗОВІ фарби: кольори набору змішуються з них (palette/mixing.py)
+    mix_max_components: int = 3                       # скільки базових фарб максимум у одному відтінку (1..4)
+    mix_parts: int = 12                               # у скільки часток ділиться ємність (12 частток по 0,25 мл для 3 мл)
     detail: float = 1.0                               # множник деталізації 0.5..3: більше = дрібніші ділянки й вужчі деталі
     auto_detail: bool = True                          # автоматична деталізація шкіри/облич (кольоровий поріг, без ШІ)
     auto_detail_strength: float = 2.0                 # вага автозони, як у ручної зони (0..2)

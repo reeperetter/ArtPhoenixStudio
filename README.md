@@ -247,6 +247,7 @@ python main.py --purchase-list out --bulk-ml 50      # лише зібрати �
 ```
 python main.py photo.jpg --catalog starter_214 --colors 20    # вбудована чернетка палітри (214 кольорів: шкіра, пастелі, природа, нейтральні, темні)
 python main.py photo.jpg --catalog мій_склад.json --colors 24
+python main.py photo.jpg --catalog examples/base_paints_sample.json --mix --colors 36   # змішування з 30 базових фарб: рецепти в мл на ємність 3 мл
 ```
 
 `starter_214` (старіші `starter_215`, `starter_211`, `starter_176`, `starter_150`, `starter_100`, `starter_48` і `starter_36` лишаються для сумісності; будується `tools/build_palette.py --photos ПАПКА --builtin --size 175 --prior 0.3 --extras`) — **чернетка**: кольори екрана, не реальні фарби; замінити після вибору постачальника й мазків-зразків.

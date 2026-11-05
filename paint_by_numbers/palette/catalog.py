@@ -72,6 +72,19 @@ _PIGMENT = re.compile(r"^P(W|Y|O|R|V|B|G|Br|Bk|M)(\d{1,3})(:\d{1,2})?$", re.IGNO
 _CANON = {"w": "W", "y": "Y", "o": "O", "r": "R", "v": "V", "b": "B", "g": "G", "br": "Br", "bk": "Bk", "m": "M"}
 
 
+def _strength(value, code: str) -> float:
+    """Сила фарби в суміші (1 = середня): множник частки при розрахунку змішування, 0.1..10."""
+    if value in (None, ""):
+        return 1.0
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        raise CatalogError(f"Фарба «{code}»: strength має бути числом.")
+    if not 0.1 <= v <= 10.0:
+        raise CatalogError(f"Фарба «{code}»: strength має бути від 0.1 до 10.")
+    return round(v, 3)
+
+
 def normalize_pigments(value, code: str = "") -> list[str]:
     """Приводить індекси пігментів до канонічного вигляду («pb29» -> «PB29», «pbk7» -> «PBk7»). Приймає список або
     рядок із роздільниками , ; + / і пробілами. Некоректний індекс --- CatalogError."""
@@ -135,7 +148,8 @@ def parse_catalog(data) -> tuple[str, list[dict]]:
         else:
             raise CatalogError(f"Фарба «{code}»: потрібне поле «hex» або «lab».")
         out.append({"code": code, "name": str(d.get("name", "")), "hex": hx,
-                    "lab": [round(float(v), 3) for v in lab], "pigments": normalize_pigments(d.get("pigments"), code)})
+                    "lab": [round(float(v), 3) for v in lab], "pigments": normalize_pigments(d.get("pigments"), code),
+                    "strength": _strength(d.get("strength"), code)})
     return name, out
 
 

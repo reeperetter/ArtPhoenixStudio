@@ -14,6 +14,7 @@ from ..export.preview import palette_bgr
 from ..geometry.planar import Geometry
 from ..pipeline.regions import RegionMap
 from ..settings import Settings
+from .mixing import recipe_text
 
 
 def containers_needed(area_mm2: float, coverage_mm2: float | None, safety: float) -> int:
@@ -22,7 +23,7 @@ def containers_needed(area_mm2: float, coverage_mm2: float | None, safety: float
     return max(1, math.ceil(round(area_mm2 * safety / coverage_mm2, 9)))
 
 
-def compute_spec(rm: RegionMap, geom: Geometry, settings: Settings, px_per_mm: float, cat_match=None) -> dict:
+def compute_spec(rm: RegionMap, geom: Geometry, settings: Settings, px_per_mm: float, cat_match=None, mixes=None) -> dict:
     k = len(rm.palette_lab)
     area_px = np.zeros(k)
     nreg = np.zeros(k, int)
@@ -39,12 +40,21 @@ def compute_spec(rm: RegionMap, geom: Geometry, settings: Settings, px_per_mm: f
         b, g, r_ = (int(v) for v in bgr[i])
         n = containers_needed(float(area_mm2[i]), N, K)
         m = cat_match[i] if cat_match else None
+        mx = mixes[i] if mixes else None
+        mix_entry = None
+        if mx:
+            total_ml_i = n * settings.container_ml
+            comps = [{**c, "ml_total": round(total_ml_i * c["parts"] / mx.total_parts, 3)} for c in mx.components]
+            mix_entry = {"parts_total": mx.total_parts, "step_ml": round(settings.container_ml / mx.total_parts, 4),
+                         "components": comps, "recipe_text": recipe_text(mx)}
         paints.append({
             "number": i + 1,
-            "paint_code": m.paint["code"] if m else f"P-{i + 1:03d}",
-            "paint_name": m.paint["name"] if m else "",
-            "pigments": list(m.paint.get("pigments") or []) if m else [],
-            "catalog_delta_e2000": round(m.delta_e2000, 2) if m else None,
+            "paint_code": m.paint["code"] if m else (f"M-{i + 1:03d}" if mx else f"P-{i + 1:03d}"),
+            "paint_name": m.paint["name"] if m else (mix_entry["recipe_text"] if mx else ""),
+            "pigments": list(m.paint.get("pigments") or []) if m else (
+                list(dict.fromkeys(g for c in mx.components for g in c["pigments"])) if mx else []),
+            "mix": mix_entry,
+            "catalog_delta_e2000": round(m.delta_e2000, 2) if m else (round(mx.delta_e2000, 2) if mx else None),
             "catalog_duplicate": bool(m.duplicate) if m else False,
             "hex": f"#{r_:02X}{g:02X}{b:02X}",
             "lab": [round(float(v), 2) for v in rm.palette_lab[i]],
@@ -56,8 +66,17 @@ def compute_spec(rm: RegionMap, geom: Geometry, settings: Settings, px_per_mm: f
             "total_ml": round(n * settings.container_ml, 2),
         })
     provisional = not (settings.coverage_confirmed and N)
+    base_usage = None
+    if mixes:                                                # скільки кожної базової фарби піде на весь набір
+        use: dict[str, dict] = {}
+        for p in paints:
+            for c in p["mix"]["components"]:
+                u = use.setdefault(c["code"], {"code": c["code"], "name": c["name"], "ml": 0.0})
+                u["ml"] = round(u["ml"] + c["ml_total"], 3)
+        base_usage = sorted(use.values(), key=lambda u: (-u["ml"], u["code"]))
     return {
         "paints": paints,
+        "base_usage": base_usage,
         "totals": {
             "paints": k,
             "containers": int(sum(p["containers"] for p in paints)),
@@ -75,3 +94,4 @@ def compute_spec(rm: RegionMap, geom: Geometry, settings: Settings, px_per_mm: f
                      if provisional else "Норма покриття підтверджена фізичними тестами."),
         },
     }
+

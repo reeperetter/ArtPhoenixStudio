@@ -25,6 +25,21 @@ class PurchaseError(ValueError):
     pass
 
 
+def _expand_mixes(paints: list[dict]) -> list[dict]:
+    """Кольори-суміші замінюються витратою їхніх базових фарб (мл); звичайні фарби лишаються як є."""
+    out: list[dict] = []
+    for p in paints:
+        if not p.get("mix"):
+            out.append(p)
+            continue
+        for c in p["mix"]["components"]:
+            out.append({"paint_code": c["code"], "paint_name": c.get("name", ""), "pigments": c.get("pigments") or [],
+                        "hex": c.get("hex") or p["hex"], "lab": c.get("lab") or p["lab"], "containers": 0,
+                        "total_ml": c["ml_total"], "area_mm2": 0.0, "from_mix": True,
+                        "container_ml": p.get("container_ml", 3.0)})
+    return out
+
+
 def _read(path: Path):
     try:
         return json.loads(path.read_text(encoding="utf-8"))
@@ -77,10 +92,12 @@ def build_purchase_list(out_root: str | Path, bulk_ml: float | None = None, fill
         included.append({"order": oid, "name": name, "containers": spec["totals"]["containers"],
                          "total_ml": spec["totals"]["total_ml"], "provisional": prov,
                          "canvas_mm": spec.get("canvas_mm")})
-        for p in spec["paints"]:
+        for p in _expand_mixes(spec["paints"]):
             e = paints.setdefault(p["paint_code"], {
                 "paint_code": p["paint_code"], "paint_name": p["paint_name"], "pigments": " + ".join(p.get("pigments") or []),
                 "hex": p["hex"], "lab": p["lab"], "orders": {}, "containers": 0, "total_ml": 0.0, "area_mm2": 0.0})
+            if p.get("from_mix"):
+                e["from_mix"], e["container_ml"] = True, p["container_ml"]
             if ciede2000(np.array(e["lab"]), np.array(p["lab"])) > LAB_CONFLICT_DE:
                 conflicts.append({"paint_code": p["paint_code"], "order": oid})
             e["orders"][oid] = e["orders"].get(oid, 0) + p["containers"]
@@ -93,6 +110,8 @@ def build_purchase_list(out_root: str | Path, bulk_ml: float | None = None, fill
     rows = sorted(paints.values(), key=lambda e: natural_key(e["paint_code"]))
     for e in rows:
         e["orders_count"] = len(e["orders"])
+        if e.get("from_mix"):                           # базова фарба для змішування: ємності = обсяг / номінал
+            e["containers"] = max(e["containers"], math.ceil(round(e["total_ml"] / (e.get("container_ml") or 3.0), 9)))
         if bulk_ml:
             e["bulk_units"] = math.ceil(round(e["total_ml"] * (1 + fill_loss_pct / 100.0) / bulk_ml, 9))
     totals = {"orders": len(included), "paints": len(rows), "containers": sum(e["containers"] for e in rows),

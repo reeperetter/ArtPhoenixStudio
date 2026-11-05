@@ -421,4 +421,10 @@ EN = {
     'Відновлення роботи': 'Restore work',
     'Знайдено незбережену роботу з попереднього сеансу (ручні правки). Відновити її?': 'Unsaved work from the previous session (manual edits) was found. Restore it?',
     'Контури на фото': 'Outlines on photo',
+    'змішувати кольори з базових фарб': 'mix colours from base paints',
+    "Каталог = ваші БАЗОВІ фарби (наприклад, 30). Програма розрахує для кожного кольору картини рецепт змішування з урахуванням об'єму ємності 3 мл.\nМодель наближена: перевіряйте рецепти пробним замісом.": "Catalogue = your BASE paints (e.g. 30). The program works out a mixing recipe for every colour of the picture, taking the 3 ml container volume into account.\nThe model is approximate: check recipes with a test mix.",
+    'Скільки базових фарб максимум в одному відтінку': 'Maximum number of base paints in one shade',
+    'На скільки часток ділиться ємність: 12 частток = крок 0,25 мл для 3 мл': 'Into how many parts a container is divided: 12 parts = 0.25 ml step for 3 ml',
+    'фарб ≤': 'paints ≤',
+    'часток': 'parts',
 }

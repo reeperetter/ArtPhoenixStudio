@@ -20,6 +20,19 @@ class JournalError(ValueError):
     pass
 
 
+def _flatten_mixes(palette: list[dict], cont: dict) -> list[dict]:
+    """Змішані кольори рахуються як використання їхніх базових фарб (ємності-еквіваленти = обсяг / номінал ємності)."""
+    out = []
+    for p in palette:
+        if not p.get("mix"):
+            out.append(p)
+            continue
+        for c in p["mix"]["components"]:
+            out.append({"paint_code": c["code"], "paint_name": c.get("name", ""), "hex": c.get("hex") or p.get("hex", ""),
+                        "_containers": round(c["ml_total"] / (3.0 if not p["mix"].get("step_ml") else p["mix"]["step_ml"] * p["mix"]["parts_total"]), 2)})
+    return out
+
+
 def _read(path: Path):
     try:
         return json.loads(path.read_text(encoding="utf-8"))
@@ -59,11 +72,11 @@ def build_journal(out_root: str | Path, stock: list[dict] | None = None) -> dict
             "mean_delta_e76": qr.get("mean_delta_e76", "")})
         if used_catalog and not qr.get("blocked"):
             cont = {p["paint_code"]: p["containers"] for p in (spec or {}).get("paints", [])}
-            for p in pj.get("palette", []):
+            for p in _flatten_mixes(pj.get("palette", []), cont):
                 u = usage.setdefault(p["paint_code"], {"paint_code": p["paint_code"], "paint_name": p.get("paint_name", ""),
                                                        "hex": p.get("hex", ""), "orders": 0, "containers": 0})
                 u["orders"] += 1
-                u["containers"] += cont.get(p["paint_code"], 0)
+                u["containers"] += p["_containers"] if "_containers" in p else cont.get(p["paint_code"], 0)
     stock = stock or stock_from or []
     n_cat = sum(1 for r in rows if r["catalog"] == "так" and r["status"] == "готово")
     stats = []

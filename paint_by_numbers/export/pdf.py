@@ -15,6 +15,7 @@ from reportlab.pdfgen import canvas
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from ..geometry.labels import NumberSpot
+from ..palette.labels import label_lines
 from ..geometry.planar import Geometry
 from .svg import CAP_HEIGHT_EM
 
@@ -167,7 +168,7 @@ def write_spec_pdf(path: str | Path, spec: dict, meta: dict, warnings: list[dict
     head = [t["num"], t["code"], t["color"], t["hexc"], t["area"], t["regions"], t["cont"], t["vol"]]
     rows = [head]
     for p in spec["paints"]:
-        rows.append([p["number"], p["paint_code"] + (f'\n{p["paint_name"]}' if p["paint_name"] else "") + (f'\n{" + ".join(p["pigments"])}' if p.get("pigments") else ""), "", p["hex"], f'{p["area_mm2"]:,.0f}'.replace(",", " "),
+        rows.append([p["number"], "\n".join(label_lines(p)), "", p["hex"], f'{p["area_mm2"]:,.0f}'.replace(",", " "),
                      p["regions"], p["containers"], f'{p["total_ml"]:g}'])
     tot = spec["totals"]
     rows.append([t["total"], "", "", "", f'{tot["canvas_area_mm2"]:,.0f}'.replace(",", " "),
@@ -187,6 +188,12 @@ def write_spec_pdf(path: str | Path, spec: dict, meta: dict, warnings: list[dict
     tbl.setStyle(TableStyle(style))
     flow.append(tbl)
 
+    if spec.get("base_usage"):
+        flow.append(Spacer(1, 4 * mm))
+        flow.append(Paragraph("Витрата базових фарб (змішування):" if cyr else "Base paints usage (mixing):",
+                              ParagraphStyle("bu", fontName=bold, fontSize=10)))
+        for u in spec["base_usage"]:
+            flow.append(Paragraph(f'{u["code"]} {u["name"] if cyr else ""}: {u["ml"]:.2f} ml'.replace(" :", ":"), small))
     shown = [w for w in warnings if w["severity"] != "info"]
     flow.append(Spacer(1, 6 * mm))
     flow.append(Paragraph(f'{t["warn"]}:', ParagraphStyle("wh", fontName=bold, fontSize=10)))

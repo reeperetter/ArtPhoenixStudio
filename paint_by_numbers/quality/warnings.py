@@ -61,7 +61,16 @@ def collect(img_warnings: list[dict], geom_topology: dict, spots, region_area_mm
     if settings.catalog:
         far = [pp["number"] for pp in spec["paints"]
                if pp["catalog_delta_e2000"] is not None and pp["catalog_delta_e2000"] > settings.catalog_max_de2000]
-        if far:
+        if settings.mix_mode:
+            out.append(_w("MIX_APPROX", INFO, "Рецепти змішування розраховані наближеною моделлю (Кубелка--Мунк за екранним "
+                          "кольором фарб): реальний відтінок може відрізнятися.",
+                          "Зробіть пробні замішування 2-3 кольорів і за потреби змініть «strength» базових фарб у каталозі."))
+        if far and settings.mix_mode:
+            out.append(_w("MIX_FAR", WARNING, f"{len(far)} кольорів не вдається отримати змішуванням базових фарб "
+                          f"з достатньою точністю (ΔE2000 > {settings.catalog_max_de2000:g}).",
+                          "Додайте базову фарбу потрібного відтінку (насичену, світлу чи темну), збільште кількість "
+                          "компонентів або частин; перевірте рецепт пробним замісом.", far))
+        elif far:
             out.append(_w("CAT_FAR", WARNING, f"Для {len(far)} кольорів у каталозі немає близької фарби "
                           f"(ΔE2000 > {settings.catalog_max_de2000:g}).",
                           "Додайте в каталог фарби поближчі до цих кольорів або змішуйте вручну.", far))

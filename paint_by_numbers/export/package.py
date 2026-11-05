@@ -35,6 +35,15 @@ def _write_json(path: Path, data) -> None:
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+def _write_base_usage_csv(path: Path, spec: dict) -> None:
+    with open(path, "w", newline="", encoding="utf-8-sig") as f:
+        w = csv.writer(f, delimiter=";")
+        w.writerow(["code", "name", "ml_total"])
+        for u in spec["base_usage"]:
+            w.writerow([u["code"], u["name"], u["ml"]])
+        w.writerow(["TOTAL", "", round(sum(u["ml"] for u in spec["base_usage"]), 3)])
+
+
 def _write_csv(path: Path, spec: dict) -> None:
     cols = ["number", "paint_code", "paint_name", "pigments", "catalog_delta_e2000", "hex", "area_mm2", "area_share_pct", "regions", "containers",
             "container_ml", "total_ml"]
@@ -108,6 +117,9 @@ def build_package(res, out_root: str | Path, photo: str | Path, force: bool = Fa
                     rec(f"print/print_ready/{name}", Path(name).suffix.lstrip(".") or "file", **info)
             _write_csv(tmp / "palette/paint_list.csv", res.spec)
             rec("palette/paint_list.csv", "csv")
+            if res.spec.get("base_usage"):
+                _write_base_usage_csv(tmp / "palette/base_paints_usage.csv", res.spec)
+                rec("palette/base_paints_usage.csv", "csv")
             meta = {"order_number": s.order_number, "project_name": s.project_name, "width_mm": res.width_mm,
                     "height_mm": res.height_mm, "mode": s.mode, "container_ml": s.container_ml}
             sinfo = write_spec_pdf(tmp / "production/production_specification.pdf", res.spec, meta, res.warnings)
@@ -152,7 +164,7 @@ def build_package(res, out_root: str | Path, photo: str | Path, force: bool = Fa
                           "px_per_mm": res.px_per_mm},
             "source": {"file": src_rel, "sha256": _sha256(tmp / src_rel), "original_name": original_name or photo.name},
             "palette": [{"number": p["number"], "paint_code": p["paint_code"], "paint_name": p["paint_name"], "pigments": p.get("pigments", []),
-                         "hex": p["hex"], "lab": p["lab"]}
+                         "hex": p["hex"], "lab": p["lab"], "mix": p.get("mix")}
                         for p in res.spec["paints"]],
             "regions_file": "project/regions.npz",
             "spec_calculation": res.spec["calculation"],

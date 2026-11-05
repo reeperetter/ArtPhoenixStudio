@@ -16,6 +16,7 @@ from .export.package import build_package
 from .geometry.labels import NumberSpot, place_numbers_vector
 from .geometry.leaders import place_leaders
 from .palette.catalog import match_palette
+from .palette.mixing import solve_mixes
 from .quality.photo_assessment import assess_photo
 from .geometry.planar import Geometry, build_geometry
 from .image_io.loader import load_image
@@ -117,7 +118,7 @@ def run_pipeline(photo: str | Path, settings: Settings, restored: dict | None = 
     n_dig = 2 if k > 9 else 1
     r_cap = 0.5 * math.sqrt((0.62 * n_dig) ** 2 + 1.0) * min_digit_px + line_px / 2.0
     floor_px = math.pi * r_cap ** 2
-    exact = bool(settings.catalog and settings.catalog_select)   # кольори набору беруться прямо зі складу фарб
+    exact = bool(settings.catalog and settings.catalog_select and not settings.mix_mode)   # кольори набору беруться прямо зі складу фарб
     if restored is not None:
         # відкриття збереженого проєкту: розбиття на ділянки вже готове, повторного квантування й злиттів немає
         rm = RegionMap(restored["labels"], restored["region_color"], np.bincount(restored["labels"].ravel(),
@@ -128,7 +129,7 @@ def run_pipeline(photo: str | Path, settings: Settings, restored: dict | None = 
         lab = get_lab()
         qlabels, centers = quantize(lab, k, settings.seed, weights=None if zw is None else 1.0 + zw,
                               stock=np.array([c["lab"] for c in settings.catalog], np.float32)
-                              if settings.catalog and settings.catalog_select else None)
+                              if settings.catalog and settings.catalog_select and not settings.mix_mode else None)
         lap("quantize")
         L0, col0 = connected_regions(qlabels, k)
         lap("components")
@@ -187,10 +188,15 @@ def run_pipeline(photo: str | Path, settings: Settings, restored: dict | None = 
     lap("geometry+labels")
     cat_match = None
     palette_raw = rm.palette_lab.copy()
-    if settings.catalog:                  # реальні фарби: превʼю й метрики далі рахуються за кольорами фарб
+    mixes = None
+    if settings.catalog and settings.mix_mode:        # змішування з базових фарб: рецепт на кожен колір набору
+        mixes, mix_info = solve_mixes(rm.palette_lab, settings.catalog, settings.mix_parts,
+                                      settings.mix_max_components, settings.container_ml)
+        rm.palette_lab = np.array([r.lab for r in mixes], np.float32)
+    elif settings.catalog:                # реальні фарби: превʼю й метрики далі рахуються за кольорами фарб
         cat_match = match_palette(rm.palette_lab, settings.catalog)
         rm.palette_lab = np.array([m.paint["lab"] for m in cat_match], np.float32)
-    spec = compute_spec(rm, geom, settings, ppm, cat_match)
+    spec = compute_spec(rm, geom, settings, ppm, cat_match, mixes)
     lap("spec")
 
     color_img = preview.render_color(rm)
@@ -213,7 +219,11 @@ def run_pipeline(photo: str | Path, settings: Settings, restored: dict | None = 
     warns = qw.collect(img.warnings, geom.topology, spots, areas_mm2, settings, spec, k,
                        int(len(rm.palette_lab)), ppm, zone_report)
     catalog_report = None
-    if cat_match:
+    if mixes:
+        des = [r.delta_e2000 for r in mixes]
+        catalog_report = {"mode": "mix", "base_paints": len(settings.catalog), "mean_delta_e2000": round(float(np.mean(des)), 2),
+                          "max_delta_e2000": round(float(np.max(des)), 2), "duplicates": 0, **mix_info}
+    elif cat_match:
         des = [m.delta_e2000 for m in cat_match]
         catalog_report = {"paints_in_catalog": len(settings.catalog), "mean_delta_e2000": round(float(np.mean(des)), 2),
                           "max_delta_e2000": round(float(np.max(des)), 2),

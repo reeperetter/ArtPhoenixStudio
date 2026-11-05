@@ -81,6 +81,18 @@ A catalogue is a JSON file with a list of paints (code, name, colour). Buttons i
 
 With a catalogue the program picks the best colours for this photo **directly from the stock** (no more than the requested number) and paints with exactly those. Identical codes in different orders mean the same paint, so a combined purchase list can be made for a batch.
 
+### Mixing colours from base paints
+If you have a limited set of base paints (say 30) but a picture needs up to 36 shades, switch on **"mix colours from base paints"** in block "3. Paints". The catalogue then means your **base paints** (example: `examples/base_paints_sample.json`), and the program:
+1. chooses the picture colours freely from the photo (as without a catalogue);
+2. for each colour searches all recipes of **2-3 (up to 4) base paints** and picks the most accurate by ΔE2000 (a simpler recipe gets a small advantage);
+3. shows the **recipe in ml per one 3 ml container**, e.g. "Yellow 1.5 + Blue 1.25 + Red 0.25 ml". A container is divided into 12 parts (0.25 ml step; the number of parts can be changed from 4 to 24);
+4. if a colour needs several containers, you get the **total volume of every base paint** (in the specification, in `palette/base_paints_usage.csv` and in the purchase list);
+5. the colour preview shows **attainable** colours, i.e. those that will really come out of your base.
+
+A colour the base cannot give gets warning **MIX_FAR** (ΔE2000 above the threshold): add a base paint of the missing shade. Saturated, very light and very dark paints are most often missing. Very light shades are limited by the step: at least 0.25 ml of paint per 3 ml.
+
+**About accuracy.** The calculation uses an approximate Kubelka-Munk model on the paint's **screen colour** (hex), without real pigment spectra. The real result depends on pigments, white and layer thickness. Therefore: (1) mix 2-3 colours as a test and compare with the preview; (2) if a paint tints stronger or weaker than expected, set the `strength` field in the catalogue (1 = average, 2 = twice as strong, 0.1 to 10) and recalculate; (3) best of all, give a hex measured from a real swatch of the paint. Command line: `--mix` (`--mix-components`, `--mix-parts`).
+
 ### How many containers
 Each container is 3 ml. For a colour with area S you need:
 
@@ -120,6 +132,8 @@ After creating the preview open the "Warnings" tab. Severity: **critical** (prod
 | AREA_SMALL | There are very small regions | Check whether they are important details (eyes) |
 | SPEC_PROVISIONAL | Norm N is not confirmed | Measure N and tick the checkbox |
 | SPEC_MANY_CONTAINERS | A colour needs more than 10 containers | Check the specification |
+| MIX_FAR | The colour cannot be mixed accurately from the base paints | Add a base paint of the missing shade, allow more components |
+| MIX_APPROX | Mixing recipes are approximate (informational) | Check with a test mix, adjust the paint's `strength` if needed |
 | CAT_FAR | No close paint in the catalogue for a colour | Add a paint to the catalogue |
 | CAT_TOO_SMALL | The catalogue has fewer paints than colours | Fewer colours or a wider catalogue |
 | ZONE_EMPTY, ZONE_NUM_NO_ROOM | Problem with a priority zone | Check the zone's position or weight |

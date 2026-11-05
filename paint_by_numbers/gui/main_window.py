@@ -226,8 +226,23 @@ class MainWindow(QMainWindow):
                                   "Перевіряйте читабельність цифр на пробному друку."))
         self.cb_auto_detail = QCheckBox(tr("автоматично деталізувати обличчя й шкіру"))
         self.cb_auto_detail.setChecked(True)
+        self.cb_mix = QCheckBox(tr("змішувати кольори з базових фарб"))
+        self.cb_mix.setToolTip(tr("Каталог = ваші БАЗОВІ фарби (наприклад, 30). Програма розрахує для кожного кольору "
+                                  "картини рецепт змішування з урахуванням об'єму ємності 3 мл.\n"
+                                  "Модель наближена: перевіряйте рецепти пробним замісом."))
+        self.sp_mix_n = QSpinBox(minimum=1, maximum=4, value=3)
+        self.sp_mix_n.setToolTip(tr("Скільки базових фарб максимум в одному відтінку"))
+        self.sp_mix_parts = QSpinBox(minimum=4, maximum=24, value=12)
+        self.sp_mix_parts.setToolTip(tr("На скільки часток ділиться ємність: 12 частток = крок 0,25 мл для 3 мл"))
+        mix_row = QHBoxLayout()
+        mix_row.addWidget(QLabel(tr("фарб ≤")))
+        mix_row.addWidget(self.sp_mix_n)
+        mix_row.addWidget(QLabel(tr("часток")))
+        mix_row.addWidget(self.sp_mix_parts)
         f.addRow(row)
         f.addRow(self.lbl_cat)
+        f.addRow(self.cb_mix)
+        f.addRow(mix_row)
         f.addRow(tr("Покриття N однієї ємності"), self.sp_cov)
         f.addRow(tr("Коефіцієнт запасу K"), self.sp_k)
         f.addRow(tr("Деталізація"), self.sp_detail)
@@ -432,9 +447,9 @@ class MainWindow(QMainWindow):
         split.setStretchFactor(1, 1)
         split.setHandleWidth(7)
 
-        for w in (self.sp_w, self.sp_h, self.sp_colors, self.sp_cov, self.sp_k, self.sp_detail):
+        for w in (self.sp_w, self.sp_h, self.sp_colors, self.sp_cov, self.sp_k, self.sp_detail, self.sp_mix_n, self.sp_mix_parts):
             w.valueChanged.connect(self._invalidate)
-        for w in (self.cb_auto_h, self.cb_auto_colors, self.cb_cov_ok, self.cb_auto_detail):
+        for w in (self.cb_auto_h, self.cb_auto_colors, self.cb_cov_ok, self.cb_auto_detail, self.cb_mix):
             w.toggled.connect(self._invalidate)
         self.cmb_mode.currentIndexChanged.connect(self._invalidate)
 
@@ -826,6 +841,7 @@ class MainWindow(QMainWindow):
             coverage_mm2_per_container=self.sp_cov.value() or None, safety_factor=self.sp_k.value(),
             coverage_confirmed=self.cb_cov_ok.isChecked(), detail=self.sp_detail.value(),
             auto_detail=self.cb_auto_detail.isChecked(), zones=copy.deepcopy(self.zones), catalog=list(self.catalog),
+            mix_mode=self.cb_mix.isChecked(), mix_max_components=self.sp_mix_n.value(), mix_parts=self.sp_mix_parts.value(),
             extra=self._extra())
 
     def _busy(self, on: bool, text: str = "", cancellable: bool = False) -> None:
@@ -1183,7 +1199,7 @@ class MainWindow(QMainWindow):
     def _load_prefs(self) -> None:
         p = self.prefs
         widgets = (self.sp_w, self.sp_h, self.cmb_mode, self.cb_auto_h, self.cb_auto_colors, self.sp_colors,
-                   self.sp_cov, self.sp_k, self.cb_cov_ok, self.sp_detail, self.cb_auto_detail)
+                   self.sp_cov, self.sp_k, self.cb_cov_ok, self.sp_detail, self.cb_auto_detail, self.cb_mix, self.sp_mix_n, self.sp_mix_parts)
         for w in widgets:
             w.blockSignals(True)
         self.sp_w.setValue(p.get("width_mm"))
@@ -1199,6 +1215,9 @@ class MainWindow(QMainWindow):
         self.cb_cov_ok.setChecked(p.get("coverage_confirmed"))
         self.sp_detail.setValue(p.get("detail"))
         self.cb_auto_detail.setChecked(p.get("auto_detail"))
+        self.cb_mix.setChecked(bool(p.get("mix_mode")))
+        self.sp_mix_n.setValue(int(p.get("mix_components")))
+        self.sp_mix_parts.setValue(int(p.get("mix_parts")))
         for w in widgets:
             w.blockSignals(False)
         self.ed_store.setText(p.get("store_name"))
@@ -1232,6 +1251,9 @@ class MainWindow(QMainWindow):
         p.set("coverage_confirmed", self.cb_cov_ok.isChecked())
         p.set("detail", float(self.sp_detail.value()))
         p.set("auto_detail", self.cb_auto_detail.isChecked())
+        p.set("mix_mode", self.cb_mix.isChecked())
+        p.set("mix_components", int(self.sp_mix_n.value()))
+        p.set("mix_parts", int(self.sp_mix_parts.value()))
         p.set("store_name", self.ed_store.text().strip())
         p.set("print_profile", json.dumps(self.print_profile) if self.print_profile is not None else "")
         p.set_geometry(self.saveGeometry())
@@ -1267,7 +1289,7 @@ class MainWindow(QMainWindow):
     def _project_opened(self, res) -> None:
         s = res.settings
         widgets = (self.sp_w, self.sp_h, self.cmb_mode, self.cb_auto_h, self.cb_auto_colors, self.sp_colors,
-                   self.sp_cov, self.sp_k, self.cb_cov_ok, self.sp_detail, self.cb_auto_detail, self.ed_order, self.ed_name)
+                   self.sp_cov, self.sp_k, self.cb_cov_ok, self.sp_detail, self.cb_auto_detail, self.cb_mix, self.sp_mix_n, self.sp_mix_parts, self.ed_order, self.ed_name)
         for w in widgets:
             w.blockSignals(True)
         self.sp_w.setValue(s.width_mm)
@@ -1283,6 +1305,9 @@ class MainWindow(QMainWindow):
         self.cb_cov_ok.setChecked(bool(s.coverage_confirmed))
         self.sp_detail.setValue(s.detail)
         self.cb_auto_detail.setChecked(bool(s.auto_detail))
+        self.cb_mix.setChecked(bool(s.mix_mode))
+        self.sp_mix_n.setValue(int(s.mix_max_components))
+        self.sp_mix_parts.setValue(int(s.mix_parts))
         self.ed_order.setText(s.order_number)
         self.ed_name.setText(s.project_name)
         self.ed_store.setText(str(s.extra.get("store_name", "")))
