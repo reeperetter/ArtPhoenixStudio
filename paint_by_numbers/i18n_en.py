@@ -76,7 +76,7 @@ EN = {
     '3. Фарби (необовʼязково)': '3. Paints (optional)',
     'Каталог…': 'Catalog…',
     'Скинути': 'Reset',
-    'Стартова (215)': 'Starter (215)',
+    'Стартова (214)': 'Starter (214)',
     'Вбудована ЧЕРНЕТКА складської палітри для портретів (кольори екрана, не реальні фарби)': 'Built-in DRAFT stock palette for portraits (screen colors, not real paints)',
     'каталог не задано (коди P-001…)': 'no catalog set (codes P-001…)',
     'не задано': 'not set',

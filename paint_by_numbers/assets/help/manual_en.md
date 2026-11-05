@@ -5,7 +5,7 @@ The program turns a customer's photo into a production package for a paint-by-nu
 1. **Open a photo**: the "Open photo…" button (Ctrl+O).
 2. **Set the canvas**: width in mm, height (from the photo's proportions or manually).
 3. **Choose a mode** and, if needed, the number of colours. The maximum in one picture is **36 colours**; for an economical kit (up to 24) keep "Balanced" or "Simple".
-4. **Choose paints**: "Starter (215)" or your own catalogue. This is optional, but it is the only way for identical paints to match between orders.
+4. **Choose paints**: "Starter (214)" or your own catalogue. This is optional, but it is the only way for identical paints to match between orders.
 5. **Mark priority zones** (eyes, important details) on the "Photo and zones" tab. Skin and faces are detailed automatically (see "Detail").
 6. **Click the big green "Create preview" button** (Ctrl+R). It usually takes 10–40 seconds.
 7. While the calculation runs, the status shows the **current stage**, and the **"Cancel"** button under the green button interrupts it (it stops at the end of the current stage; anything already saved to disk is untouched).
@@ -72,7 +72,7 @@ The "Detail" field (0.5–3) makes regions and digits smaller: at 1.4 a portrait
 
 ### Paint stock (catalogue)
 A catalogue is a JSON file with a list of paints (code, name, colour). Buttons in the "3. Paints" block:
-- **"Starter (215)"**: a built-in **draft** stock palette of 215 colours (8 skin tones, neutrals, muted warm and cool colours, natural colours). At most 36 colours from it go into a kit, the best ones for the particular photo. These are screen colours, **not real paints**. Replace it once you have chosen a supplier.
+- **"Starter (214)"**: a built-in **draft** stock palette of 214 colours (8 skin tones, neutrals, muted warm and cool colours, natural colours). At most 36 colours from it go into a kit, the best ones for the particular photo. These are screen colours, **not real paints**. Replace it once you have chosen a supplier.
 - **"Catalogue…"**: load your own file. Example format: `examples/catalog_sample.json`. Each paint may carry an international **pigment index** (Colour Index), e.g. `"pigments": ["PW6"]` or `["PB29", "PW6"]` (also PY150, PB15:3, PBk7). It is shown in the specification table and the paint picker, printed in the specification PDF, the assembly sheet and the purchase list, and written to `paint_list.csv`. The built-in palette has no pigments: its colours are on-screen colours.
 - **"Reset"**: work without a catalogue (paints get codes P-001, P-002…).
 
@@ -156,7 +156,7 @@ A new preview discards manual edits (the program asks for confirmation). A saved
 ## How to get the best result
 
 1. **Photo.** Sharp, not heavily blurred, evenly lit; the face should take up a noticeable part of the frame. The higher the resolution, the better (the IMG_LOW_RES warning means too low).
-2. **Paints.** Work with the stock catalogue ("Starter (215)" or your own). The program will pick up to 36 best colours from it for this photo.
+2. **Paints.** Work with the stock catalogue ("Starter (214)" or your own). The program will pick up to 36 best colours from it for this photo.
 3. **Detail.** Start with the "Balanced" mode and detail 1.0. If the face looks too simplified, raise detail to 1.2–1.5 and check the digits on a test print.
 4. **Priority zones.** For a portrait always mark the **face with an ellipse of weight 3–6** (together with detail 1.2–1.4): this makes the eyes, brows, nose and lips clear (on the test photo the face had 35 regions with the auto zone, 44 with a weight-3 zone and 80 with weight 6 and detail 1.4). The automatic skin-colour zone only moderately boosts detail, and faces cannot be recognised reliably by classical methods.
 5. **Editing.** After the preview fix the small things by hand: smooth a ragged outline, merge a tiny region, replace a colour everywhere.
