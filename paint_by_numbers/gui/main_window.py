@@ -36,6 +36,7 @@ from .help_dialog import HelpDialog
 from .history import UndoStack
 from .print_dialog import PrintProfileDialog
 from .orders_dialog import OrdersDialog
+from .palette_editor import PaletteEditor
 from .safe_label import SafeLabel
 from .paint_pick import PaintPickDialog
 from .region_editor import RegionEditPanel
@@ -214,6 +215,9 @@ class MainWindow(QMainWindow):
         row.addWidget(self.btn_cat)
         row.addWidget(self.btn_cat_starter)
         row.addWidget(self.btn_cat_clear)
+        self.btn_cat_edit = QPushButton(tr("Редактор палітри…"))
+        self.btn_cat_edit.setToolTip(tr("Створити чи змінити каталог фарб у таблиці (код, назва, колір, пігмент), без ручного JSON"))
+        self.btn_cat_edit.clicked.connect(self.edit_palette)
         self.catalog: list[dict] = []
         self.lbl_cat = SafeLabel(tr("каталог не задано (коди P-001…)"))
         self.sp_cov = QDoubleSpinBox(maximum=1e7, minimum=0, decimals=0, singleStep=500, suffix=tr(" мм²"))
@@ -239,6 +243,7 @@ class MainWindow(QMainWindow):
         mix_row.addWidget(QLabel(tr("часток")))
         mix_row.addWidget(self.sp_mix_parts)
         f.addRow(row)
+        f.addRow(self.btn_cat_edit)
         f.addRow(self.lbl_cat)
         f.addRow(self.cb_mix)
         f.addRow(mix_row)
@@ -755,6 +760,24 @@ class MainWindow(QMainWindow):
         path, _ = QFileDialog.getOpenFileName(self, tr("Каталог фарб"), self.prefs.get("last_catalog_dir"), "JSON (*.json)")
         if not path:
             return
+        try:
+            self.catalog = load_catalog(path)
+        except (CatalogError, OSError) as e:
+            QMessageBox.warning(self, tr("Помилка в каталозі"), tr(str(e)))
+            return
+        self.lbl_cat.setText(tr(f"{Path(path).name}: {len(self.catalog)} фарб"))
+        self.prefs.set("catalog_path", path)
+        self.prefs.set("last_catalog_dir", str(Path(path).parent))
+        self._invalidate()
+
+    def edit_palette(self) -> None:
+        path = self.prefs.get("catalog_path")
+        own = path if path and Path(path).is_file() else ""             # вбудовану палітру редагуємо як копію (збереження в інший файл)
+        dlg = PaletteEditor(self.catalog, Path(own).stem if own else "", own, self.prefs.get("last_catalog_dir"), self)
+        dlg.applied.connect(self._catalog_from_editor)
+        dlg.exec()
+
+    def _catalog_from_editor(self, path: str) -> None:
         try:
             self.catalog = load_catalog(path)
         except (CatalogError, OSError) as e:

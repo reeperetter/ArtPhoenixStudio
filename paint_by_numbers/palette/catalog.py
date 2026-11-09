@@ -153,6 +153,44 @@ def parse_catalog(data) -> tuple[str, list[dict]]:
     return name, out
 
 
+def paint_hex(paint: dict) -> str:
+    """#RRGGBB фарби: з поля hex, а для фарб лише з lab --- обчислюється."""
+    if paint.get("hex"):
+        return str(paint["hex"]).upper()
+    from skimage.color import lab2rgb
+    rgb = np.clip(lab2rgb(np.asarray(paint["lab"], np.float64)[None, None, :])[0, 0], 0, 1)
+    return "#%02X%02X%02X" % tuple(int(round(v * 255)) for v in rgb)
+
+
+def catalog_to_json(name: str, paints: list[dict]) -> dict:
+    """Перевіряє фарби (parse_catalog) і повертає словник для запису в JSON: лише code, name, hex, pigments, strength."""
+    rows = []
+    for p in paints:
+        d = {"code": str(p.get("code", "")).strip(), "name": str(p.get("name", "")).strip(), "hex": str(p.get("hex", "")).strip()}
+        pig = p.get("pigments")
+        if pig:
+            d["pigments"] = pig if isinstance(pig, str) else " + ".join(pig)
+        st = p.get("strength")
+        if st not in (None, "", 1, 1.0):
+            d["strength"] = st
+        rows.append(d)
+    nm, clean = parse_catalog({"name": name or "catalog", "paints": rows})      # CatalogError з зрозумілим текстом
+    out = []
+    for r, c in zip(rows, clean):
+        e = {"code": c["code"], "name": c["name"], "hex": c["hex"]}
+        if c["pigments"]:
+            e["pigments"] = c["pigments"]
+        if c["strength"] != 1.0:
+            e["strength"] = c["strength"]
+        out.append(e)
+    return {"name": nm, "paints": out}
+
+
+def save_catalog(path: str | Path, name: str, paints: list[dict]) -> None:
+    data = catalog_to_json(name, paints)
+    Path(path).write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
+
+
 def bundled_palette_path(name: str) -> Path | None:
     """Вбудована палітра за іменем (наприклад «starter_36»), якщо файлу з таким шляхом немає."""
     from ..export.pdf import resource_dir
