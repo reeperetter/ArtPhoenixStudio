@@ -759,3 +759,25 @@ def test_generation_can_be_cancelled(tmp_path, monkeypatch):
     app.processEvents()
     assert w.res is None and "Скасовано" in w.lbl_status.text() and not w.btn_cancel.isVisibleTo(w)
     assert w.btn_gen.isEnabled()
+
+
+def test_long_filename_does_not_widen_left_panel(tmp_path):
+    from PySide6.QtWidgets import QApplication, QScrollArea
+    from paint_by_numbers.gui.main_window import MainWindow
+    from paint_by_numbers.gui.prefs import Prefs
+    app = QApplication.instance() or QApplication([])
+    w = MainWindow(Prefs(str(tmp_path / "p.ini")))
+    w.show()
+    app.processEvents()
+    scroll = w.findChildren(QScrollArea)[0]
+    before = scroll.widget().minimumSizeHint().width()
+    long = "IMG_" + "дуже_довга_назва_файлу_" * 8 + "кінець.jpg"
+    w.lbl_photo.setText(long)
+    w.lbl_status.setText("Пакет збережено: C:\\Users\\Name\\Documents\\" + long)
+    w.lbl_cat.setText("каталог: " + long)
+    w.lbl_print.setText(long)
+    app.processEvents()
+    assert scroll.widget().minimumSizeHint().width() <= before + 2
+    assert w.lbl_photo.text() == long                      # повний текст зберігається
+    assert not scroll.horizontalScrollBar().isVisible()
+    w.close()

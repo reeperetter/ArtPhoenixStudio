@@ -36,6 +36,7 @@ from .help_dialog import HelpDialog
 from .history import UndoStack
 from .print_dialog import PrintProfileDialog
 from .orders_dialog import OrdersDialog
+from .safe_label import SafeLabel
 from .paint_pick import PaintPickDialog
 from .region_editor import RegionEditPanel
 from ..edit import (EditError, Segmentation, add_color, merge_into, paint_polygon, rebuild_result, recolor_color,
@@ -160,13 +161,11 @@ class MainWindow(QMainWindow):
         self.btn_open_proj.setToolTip(tr("Повертає збережене замовлення без перерахунку: налаштування, зони, фарби й результат"))
         self.btn_open_proj.clicked.connect(self.open_project_dialog)
         self.original_name: str | None = None
-        self.lbl_photo = QLabel(tr("файл не вибрано"))
-        self.lbl_photo.setWordWrap(True)
+        self.lbl_photo = SafeLabel(tr("файл не вибрано"))
         f.addWidget(self.btn_open)
         f.addWidget(self.btn_open_proj)
         f.addWidget(self.lbl_photo)
-        self.lbl_quality = QLabel("")
-        self.lbl_quality.setWordWrap(True)
+        self.lbl_quality = SafeLabel("")
         self.lbl_quality.setStyleSheet("color: #6b6b6b;")
         self.lbl_quality.setVisible(False)
         f.addWidget(self.lbl_quality)
@@ -216,7 +215,7 @@ class MainWindow(QMainWindow):
         row.addWidget(self.btn_cat_starter)
         row.addWidget(self.btn_cat_clear)
         self.catalog: list[dict] = []
-        self.lbl_cat = QLabel(tr("каталог не задано (коди P-001…)"))
+        self.lbl_cat = SafeLabel(tr("каталог не задано (коди P-001…)"))
         self.sp_cov = QDoubleSpinBox(maximum=1e7, minimum=0, decimals=0, singleStep=500, suffix=tr(" мм²"))
         self.sp_cov.setSpecialValueText(tr("не задано"))
         self.sp_k = QDoubleSpinBox(minimum=1.0, maximum=10.0, value=1.3, singleStep=0.1, decimals=2)
@@ -336,14 +335,13 @@ class MainWindow(QMainWindow):
         self.btn_print = QPushButton(tr("Параметри друку…"))
         self.btn_print.setToolTip(tr("Припуск, загортання на підрамник, мітки різу, растр, розбиття на аркуші A4/A3"))
         self.btn_print.clicked.connect(self.edit_print_profile)
-        self.lbl_print = QLabel(tr("файли для друку: вимкнено"))
+        self.lbl_print = SafeLabel(tr("файли для друку: вимкнено"))
         f.addRow(self.btn_print, self.lbl_print)
         self.btn_save = QPushButton(tr("Зберегти пакет…"))
         self.btn_save.clicked.connect(self.save_package)
         self.progress = QProgressBar(maximumHeight=10, textVisible=False)
         self.progress.setRange(0, 1)
-        self.lbl_status = QLabel(tr("Відкрийте фото"))
-        self.lbl_status.setWordWrap(True)
+        self.lbl_status = SafeLabel(tr("Відкрийте фото"))
         v.addWidget(self.btn_gen)
         self.btn_cancel = QPushButton(tr("Скасувати"))
         self.btn_cancel.setToolTip(tr("Перервати поточну тривалу операцію; зроблене раніше не зміниться"))
@@ -362,6 +360,7 @@ class MainWindow(QMainWindow):
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)   # панель не ширшає за вміст
         scroll.setWidget(left)
         scroll.setMinimumWidth(360)
         scroll.setMaximumWidth(430)
