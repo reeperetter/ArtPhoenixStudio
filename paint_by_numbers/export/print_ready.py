@@ -198,19 +198,26 @@ def write_print_raster(path: str | Path, res, p: PrintProfile) -> dict:
 # ------------------------------------------------------------------ розбиття на аркуші
 def plan_tiles(trim_w: float, trim_h: float, sheet: tuple[float, float], margin: float, overlap: float):
     """Обирає орієнтацію аркуша з найменшою кількістю аркушів. Повертає (орієнтація, pw, ph, xs, ys), де xs, ys ---
-    лівий/нижній край кожної плитки у координатах області друку (мм); ys впорядковано зверху вниз."""
+    лівий/нижній край кожної плитки у координатах області друку (мм); ys впорядковано зверху вниз.
+
+    Плитки йдуть із кроком «розмір області друку мінус перекриття», тож сусідні аркуші перекриваються РІВНО на задане
+    значення (за нульового --- стикуються впритул). Останні плитка по горизонталі (справа) і по вертикалі (знизу) можуть
+    виходити за полотно: зайве поле лишається порожнім. Відлік --- від лівого верхнього кута полотна."""
     best = None
     for landscape in (False, True):
         sw, sh = (sheet[1], sheet[0]) if landscape else sheet
         pw, ph = sw - 2 * margin, sh - 2 * margin
         if pw <= overlap or ph <= overlap:
             raise PrintError("Аркуш замалий для вказаних поля й перекриття.")
+
         def axis(total, size):
-            if total <= size:
+            if total <= size + 1e-6:
                 return [0.0]
-            n = math.ceil((total - overlap) / (size - overlap) - 1e-9)
-            return [float(v) for v in np.linspace(0.0, total - size, n)]      # рівномірно: перекриття не менше заданого
-        xs, ys = axis(trim_w, pw), axis(trim_h, ph)
+            step = size - overlap
+            n = math.ceil((total - size) / step - 1e-9) + 1
+            return [i * step for i in range(n)]
+        xs = axis(trim_w, pw)
+        ys = [trim_h - (t + ph) for t in axis(trim_h, ph)]              # нижній край плитки; перша --- верхня
         cand = (len(xs) * len(ys), landscape, sw, sh, pw, ph, xs, ys)
         if best is None or cand[:2] < best[:2]:
             best = cand
@@ -240,8 +247,11 @@ def write_tiled_pdf(path: str | Path, res, p: PrintProfile, title: str) -> dict:
     c.setFont(font, 9)
     c.drawString(mg * mm, (sh - mg - 13) * mm, f"{trim_w:.0f} x {trim_h:.0f} mm; {nx} x {ny} = {nx * ny}")
     box_w, box_h = sw - 2 * mg, sh - 2 * mg - 40
-    k = min(box_w / trim_w, box_h / trim_h)
-    gx0, gy0 = mg + (box_w - trim_w * k) / 2, mg + 10
+    ext_w = max(xs) + pw                                   # плитки можуть виходити за полотно (порожнє поле)
+    ext_h = max(trim_h - (y + ph) for y in ys) + ph
+    k = min(box_w / ext_w, box_h / ext_h)
+    gx0 = mg + (box_w - ext_w * k) / 2
+    gy0 = mg + 10 + (ext_h - trim_h) * k                   # низ полотна; верх полотна збігається з верхом схеми
     c.setStrokeColorRGB(0.2, 0.2, 0.2)
     c.rect(gx0 * mm, gy0 * mm, trim_w * k * mm, trim_h * k * mm)
     num = 0
@@ -271,6 +281,9 @@ def write_tiled_pdf(path: str | Path, res, p: PrintProfile, title: str) -> dict:
             c.clipPath(clip, stroke=0, fill=0)
             draw_artwork(c, res.geom, res.spots, res.px_per_mm, H, res.line_mm, font,
                          mg - x0 + p.wrap_mm, mg - y0 + p.wrap_mm)
+            c.setLineWidth(0.3)
+            c.setStrokeColorRGB(0.1, 0.1, 0.1)
+            c.rect((mg - x0) * mm, (mg - y0) * mm, trim_w * mm, trim_h * mm)       # межа полотна (видно лише в межах плитки)
             c.restoreState()
             c.setLineWidth(0.25)
             c.setStrokeColorRGB(0.5, 0.5, 0.5)

@@ -228,7 +228,7 @@ After batch processing the result folder contains:
 The "Print options…" button opens the settings. When printing is enabled the package contains `print/print_ready/`:
 - a 1:1 PDF with **bleed**, a margin for the **wrap around the stretcher frame**, cut marks and a service line;
 - a raster (TIFF or PNG) with the chosen resolution;
-- a split into **A4/A3/A2 sheets** with overlap, an assembly diagram and marks.
+- a split into **A4/A3/A2 sheets** with overlap, an assembly diagram and marks. Sheets advance by "printable area minus overlap", so neighbouring sheets overlap by **exactly** the chosen value (0 = edge to edge). Printable area = sheet minus the printer margin on every side (8 mm by default): so A3 on A4 with margins gives 4 sheets, and with zero margins and overlap only 2. The last sheet in a row or column may stay partly empty; the canvas edge is drawn as a solid line on it.
 
 The bleed and wrap margin are white. Parameters depend on the print shop or printer: ask them for the required bleed and file format.
 

@@ -27,16 +27,29 @@ def test_profile_validation(tmp_path):
     assert load_profile(f).dpi == 150
 
 
-@pytest.mark.parametrize("tw,th", [(100, 100), (340, 573), (620, 800), (200, 3000)])
-def test_plan_tiles_covers_with_overlap(tw, th):
-    land, sw, sh, pw, ph, xs, ys = plan_tiles(tw, th, (210.0, 297.0), 8.0, 10.0)
-    for total, size, pos in ((tw, pw, xs), (th, ph, ys)):
+@pytest.mark.parametrize("ov", [0.0, 10.0])
+@pytest.mark.parametrize("tw,th", [(100, 100), (340, 573), (620, 800), (200, 3000), (297, 420), (300, 400)])
+def test_plan_tiles_exact_overlap_and_coverage(tw, th, ov):
+    land, sw, sh, pw, ph, xs, ys = plan_tiles(tw, th, (210.0, 297.0), 8.0, ov)
+    # відлік по осі x зліва; по осі y зверху: top = th - (низ + ph)
+    tops = [th - (y + ph) for y in ys]
+    for total, size, pos in ((tw, pw, xs), (th, ph, tops)):
         pos = sorted(pos)
-        assert pos[0] == 0 and abs(pos[-1] + size - total) < 1e-6 or len(pos) == 1
-        assert all(b - a <= size - 10.0 + 1e-6 for a, b in zip(pos, pos[1:]))          # перекриття не менше заданого
+        assert pos[0] == 0 and pos[-1] + size >= total - 1e-6              # полотно покрито повністю
+        assert all(abs((b - a) - (size - ov)) < 1e-6 for a, b in zip(pos, pos[1:]))   # перекриття РІВНО задане
+        assert len(pos) == 1 or pos[-1] < total                           # немає зайвої, цілком порожньої плитки
     assert ys == sorted(ys, reverse=True)
     with pytest.raises(PrintError):
         plan_tiles(300, 300, (210.0, 297.0), 100.0, 10.0)
+
+
+def test_a3_on_a4_is_four_sheets_without_overlap():
+    for mg in (0.0, 8.0):
+        land, sw, sh, pw, ph, xs, ys = plan_tiles(297.0, 420.0, (210.0, 297.0), mg, 0.0)
+        assert len(xs) * len(ys) == (2 if mg == 0 else 4)                  # без полів A3 = 2xA4; з полями 8 мм = 4
+    # без розтягування плиток: перекриття між сусідніми аркушами не більше заданого + поля
+    land, sw, sh, pw, ph, xs, ys = plan_tiles(297.0, 420.0, (210.0, 297.0), 8.0, 0.0)
+    assert xs == [0.0, pw] or xs == [0.0, ph]
 
 
 def _result(tmp_path, **kw):
